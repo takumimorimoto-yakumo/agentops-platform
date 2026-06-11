@@ -39,6 +39,10 @@ Target agents: built with **Google ADK** (the evaluation/deployment API is a fra
 
 Stack: ADK / Gemini API / Cloud Run / Cloud Build / BigQuery / Cloud Trace / Cloud Logging.
 
+## API
+
+The control-plane contract is published as [`api/openapi.yaml`](./api/openapi.yaml) (OpenAPI 3.1). Long-running operations are asynchronous (`202` + polling). Design records live in [`docs/adr/`](./docs/adr/).
+
 ## Status
 
 Work in progress (hackathon period: June–July 2026). Architecture and design records (ADR) are published as they are written.

@@ -1,0 +1,618 @@
+openapi: 3.1.0
+info:
+  title: AgentOps Platform API
+  version: 0.1.0
+  description: |
+    Control-plane API for operating AI agents with DevOps discipline:
+    evaluation, regression testing, canary release and automatic rollback.
+
+    The contract is framework-agnostic HTTP. The reference implementation
+    targets agents built with Google ADK and deployed on Cloud Run.
+
+    Evaluation axes:
+    - `drift`      — output drift score (Gemini-as-judge score delta vs baseline)
+    - `trajectory` — behavior evaluation (ADK Eval trajectory / tool-call sequence)
+    - `cost`       — cost per task (derived from Cloud Trace / Logging)
+    - `latency`    — p50/p95 latency (derived from Cloud Trace)
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+
+servers:
+  - url: https://{service}.run.app/v1
+    variables:
+      service:
+        default: agentops-platform
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: agents
+  - name: versions
+  - name: evaluations
+  - name: regressions
+  - name: deployments
+  - name: metrics
+  - name: events
+
+paths:
+  /agents:
+    post:
+      tags: [agents]
+      operationId: registerAgent
+      summary: Register an agent under management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+    get:
+      tags: [agents]
+      operationId: listAgents
+      summary: List managed agents
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Agent' }
+
+  /agents/{agentId}:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    get:
+      tags: [agents]
+      operationId: getAgent
+      summary: Get an agent
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /agents/{agentId}/versions:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [versions]
+      operationId: createVersion
+      summary: Register a new agent version (deployable artifact)
+      description: |
+        A version pins everything that defines agent behavior:
+        container image, model id, prompt/rule digest and config digest.
+        Versions are immutable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentVersionCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentVersion' }
+    get:
+      tags: [versions]
+      operationId: listVersions
+      summary: List versions of an agent
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AgentVersion' }
+
+  /agents/{agentId}/eval-suites:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [evaluations]
+      operationId: createEvalSuite
+      summary: Register an evaluation suite (ADK Eval dataset reference)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EvalSuiteCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EvalSuite' }
+    get:
+      tags: [evaluations]
+      operationId: listEvalSuites
+      summary: List evaluation suites
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EvalSuite' }
+
+  /agents/{agentId}/evaluations:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [evaluations]
+      operationId: startEvaluation
+      summary: Start an evaluation run for a version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EvaluationCreate' }
+      responses:
+        '202':
+          description: Evaluation accepted and running asynchronously
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EvaluationRun' }
+    get:
+      tags: [evaluations]
+      operationId: listEvaluations
+      summary: List evaluation runs
+      parameters:
+        - name: versionId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EvaluationRun' }
+
+  /evaluations/{evaluationId}:
+    parameters:
+      - name: evaluationId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [evaluations]
+      operationId: getEvaluation
+      summary: Get an evaluation run with per-axis scores
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EvaluationRun' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /agents/{agentId}/regressions:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [regressions]
+      operationId: startRegressionCheck
+      summary: Compare candidate version behavior against a baseline version
+      description: |
+        Runs the suite against both versions and reports per-axis deltas.
+        Intended to gate CI (Cloud Build) before any deployment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegressionCreate' }
+      responses:
+        '202':
+          description: Regression check accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegressionResult' }
+
+  /regressions/{regressionId}:
+    parameters:
+      - name: regressionId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [regressions]
+      operationId: getRegression
+      summary: Get a regression check result
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegressionResult' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /agents/{agentId}/deployments:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [deployments]
+      operationId: createDeployment
+      summary: Deploy a version with a canary strategy and rollback policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeploymentCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deployment' }
+    get:
+      tags: [deployments]
+      operationId: listDeployments
+      summary: List deployments
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Deployment' }
+
+  /deployments/{deploymentId}:
+    parameters:
+      - $ref: '#/components/parameters/deploymentId'
+    get:
+      tags: [deployments]
+      operationId: getDeployment
+      summary: Get deployment status (canary ratio, health, state)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deployment' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /deployments/{deploymentId}:promote:
+    parameters:
+      - $ref: '#/components/parameters/deploymentId'
+    post:
+      tags: [deployments]
+      operationId: promoteDeployment
+      summary: Promote the canary to 100% traffic
+      responses:
+        '200':
+          description: Promoted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deployment' }
+
+  /deployments/{deploymentId}:rollback:
+    parameters:
+      - $ref: '#/components/parameters/deploymentId'
+    post:
+      tags: [deployments]
+      operationId: rollbackDeployment
+      summary: Roll back to the previous stable version
+      description: |
+        Also invoked automatically by the platform when the rollback policy
+        thresholds are breached during the canary window.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: Rolled back
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Deployment' }
+
+  /agents/{agentId}/metrics:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    post:
+      tags: [metrics]
+      operationId: ingestMetrics
+      summary: Ingest external outcome metrics for an agent version
+      description: |
+        Entry point for application-level feedback loops. Managed agents
+        push domain outcomes (e.g. audience retention of published content)
+        which the platform folds into evaluation and rollback decisions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MetricIngest' }
+      responses:
+        '202':
+          description: Accepted
+
+  /agents/{agentId}/events:
+    parameters:
+      - $ref: '#/components/parameters/agentId'
+    get:
+      tags: [events]
+      operationId: listEvents
+      summary: Audit log of evaluations, deployments, promotions and rollbacks
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Event' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Google-signed ID token (Cloud Run service-to-service auth).
+
+  parameters:
+    agentId:
+      name: agentId
+      in: path
+      required: true
+      schema: { type: string }
+    deploymentId:
+      name: deploymentId
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+
+    AgentCreate:
+      type: object
+      required: [name, runtime]
+      properties:
+        name: { type: string, description: Unique agent name }
+        description: { type: string }
+        runtime:
+          type: string
+          enum: [adk-cloud-run]
+          description: Reference runtime. Other runtimes may be added later.
+
+    Agent:
+      allOf:
+        - $ref: '#/components/schemas/AgentCreate'
+        - type: object
+          required: [agentId, createdAt]
+          properties:
+            agentId: { type: string }
+            createdAt: { type: string, format: date-time }
+
+    AgentVersionCreate:
+      type: object
+      required: [image, model, promptDigest]
+      properties:
+        image: { type: string, description: Container image digest }
+        model: { type: string, description: LLM model id (e.g. a Gemini model) }
+        promptDigest:
+          type: string
+          description: Content digest of prompts/rules that define behavior
+        configDigest: { type: string }
+        gitCommit: { type: string }
+
+    AgentVersion:
+      allOf:
+        - $ref: '#/components/schemas/AgentVersionCreate'
+        - type: object
+          required: [versionId, createdAt]
+          properties:
+            versionId: { type: string }
+            createdAt: { type: string, format: date-time }
+
+    EvalSuiteCreate:
+      type: object
+      required: [name, adkEvalSetRef]
+      properties:
+        name: { type: string }
+        adkEvalSetRef:
+          type: string
+          description: GCS or repo path to the ADK Eval set definition
+        judgeModel:
+          type: string
+          description: Model id used as judge for drift scoring
+
+    EvalSuite:
+      allOf:
+        - $ref: '#/components/schemas/EvalSuiteCreate'
+        - type: object
+          required: [suiteId, createdAt]
+          properties:
+            suiteId: { type: string }
+            createdAt: { type: string, format: date-time }
+
+    EvaluationCreate:
+      type: object
+      required: [versionId, suiteId]
+      properties:
+        versionId: { type: string }
+        suiteId: { type: string }
+
+    AxisScore:
+      type: object
+      required: [axis, score]
+      properties:
+        axis:
+          type: string
+          enum: [drift, trajectory, cost, latency]
+        score:
+          type: number
+          description: Normalized 0..1 (higher is better) for drift/trajectory; raw value for cost (USD/task) and latency (ms)
+        threshold:
+          type: number
+          description: Pass threshold applied to this run
+        pass: { type: boolean }
+
+    EvaluationRun:
+      type: object
+      required: [evaluationId, versionId, suiteId, state]
+      properties:
+        evaluationId: { type: string }
+        versionId: { type: string }
+        suiteId: { type: string }
+        state:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        scores:
+          type: array
+          items: { $ref: '#/components/schemas/AxisScore' }
+        traceUrl:
+          type: string
+          description: Link to Cloud Trace for this run
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+
+    RegressionCreate:
+      type: object
+      required: [baselineVersionId, candidateVersionId, suiteId]
+      properties:
+        baselineVersionId: { type: string }
+        candidateVersionId: { type: string }
+        suiteId: { type: string }
+
+    RegressionResult:
+      type: object
+      required: [regressionId, state]
+      properties:
+        regressionId: { type: string }
+        state:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        verdict:
+          type: string
+          enum: [pass, fail]
+        deltas:
+          type: array
+          description: Per-axis delta (candidate - baseline)
+          items:
+            type: object
+            properties:
+              axis: { type: string, enum: [drift, trajectory, cost, latency] }
+              baseline: { type: number }
+              candidate: { type: number }
+              delta: { type: number }
+        baselineEvaluationId: { type: string }
+        candidateEvaluationId: { type: string }
+
+    RollbackPolicy:
+      type: object
+      description: Auto-rollback triggers evaluated during the canary window
+      properties:
+        windowMinutes:
+          type: integer
+          description: Observation window after each traffic step
+        maxDriftDrop:
+          type: number
+          description: Max allowed drop of drift score vs stable version
+        maxTrajectoryDrop: { type: number }
+        maxCostIncreaseRatio: { type: number }
+        maxLatencyP95Ms: { type: number }
+
+    DeploymentCreate:
+      type: object
+      required: [versionId, strategy]
+      properties:
+        versionId: { type: string }
+        strategy:
+          type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum: [canary, all-at-once]
+            steps:
+              type: array
+              description: Traffic percentages for successive canary steps
+              items: { type: integer, minimum: 1, maximum: 100 }
+        rollbackPolicy: { $ref: '#/components/schemas/RollbackPolicy' }
+
+    Deployment:
+      allOf:
+        - $ref: '#/components/schemas/DeploymentCreate'
+        - type: object
+          required: [deploymentId, state]
+          properties:
+            deploymentId: { type: string }
+            state:
+              type: string
+              enum: [pending, canary, promoted, rolled_back, failed]
+            currentTrafficPercent: { type: integer }
+            previousStableVersionId: { type: string }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+
+    MetricIngest:
+      type: object
+      required: [versionId, source, samples]
+      properties:
+        versionId: { type: string }
+        source:
+          type: string
+          description: Origin of the outcome metric (e.g. youtube-analytics)
+        samples:
+          type: array
+          items:
+            type: object
+            required: [name, value, observedAt]
+            properties:
+              name: { type: string, description: Metric name (e.g. retention_rate) }
+              value: { type: number }
+              observedAt: { type: string, format: date-time }
+              dimensions:
+                type: object
+                additionalProperties: { type: string }
+
+    Event:
+      type: object
+      required: [eventId, type, occurredAt]
+      properties:
+        eventId: { type: string }
+        type:
+          type: string
+          enum:
+            - evaluation.finished
+            - regression.finished
+            - deployment.created
+            - deployment.step_advanced
+            - deployment.promoted
+            - deployment.rolled_back
+        occurredAt: { type: string, format: date-time }
+        deploymentId: { type: string }
+        evaluationId: { type: string }
+        detail: { type: string }
