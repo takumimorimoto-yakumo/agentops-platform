@@ -40,6 +40,13 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # Demo configuration — sourced from config layer (no hardcoded magic numbers)
 # ---------------------------------------------------------------------------
+from config.defaults import (
+    DEFAULT_MAX_COST_INCREASE_RATIO as _ROLLBACK_COST_INCREASE_RATIO,
+    DEFAULT_MAX_DRIFT_DROP as _ROLLBACK_DRIFT_DROP,
+    DEFAULT_MAX_LATENCY_P95_MS as _ROLLBACK_LATENCY_P95_MS,
+    DEFAULT_MAX_TRAJECTORY_DROP as _ROLLBACK_TRAJECTORY_DROP,
+)
+
 # Canary steps for the degraded candidate
 _DEMO_CANARY_STEPS = [10, 50, 100]
 
@@ -61,13 +68,7 @@ _DEGRADED_COST_USD = 0.0019
 _DEGRADED_LATENCY_MS = 520.0
 _DEGRADED_RETENTION_RATE = 0.63  # significant decline
 
-# Rollback policy hard thresholds (aligned with config/defaults.py defaults)
-_ROLLBACK_DRIFT_DROP = 0.10
-_ROLLBACK_TRAJECTORY_DROP = 0.10
-_ROLLBACK_COST_INCREASE_RATIO = 0.50
-_ROLLBACK_LATENCY_P95_MS = 3000.0
-
-# Soft warning thresholds (aligned with Settings defaults)
+# Soft warning thresholds — aligned with Settings defaults (5% drop triggers concern)
 _WARN_DRIFT = 0.05
 _WARN_TRAJECTORY = 0.05
 
@@ -452,11 +453,12 @@ def main() -> None:
     from config.defaults import Settings
 
     store = MemoryStore()
+    # Settings field names use the bare name (env_prefix="AGENTOPS_" is stripped).
     settings = Settings(
-        AGENTOPS_JUDGE_BACKEND="stub",
-        AGENTOPS_PR_MODE="dryrun",
-        AGENTOPS_META_AGENT_DRIFT_WARN=str(_WARN_DRIFT),
-        AGENTOPS_META_AGENT_TRAJECTORY_WARN=str(_WARN_TRAJECTORY),
+        judge_backend="stub",
+        pr_mode="dryrun",
+        meta_agent_drift_warn=_WARN_DRIFT,
+        meta_agent_trajectory_warn=_WARN_TRAJECTORY,
     )
 
     server = None
