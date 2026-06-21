@@ -67,6 +67,12 @@ class Settings(BaseSettings):
         return [int(s.strip()) for s in self.canary_default_steps.split(",") if s.strip()]
 
 
+# ── Ingest limits ─────────────────────────────────────────────────────────────
+# Maximum number of MetricSample entries accepted in a single ingest request.
+# Requests exceeding this limit are rejected with HTTP 422 before any processing.
+
+MAX_METRIC_SAMPLES: int = 1000
+
 # ── Rollback policy defaults ──────────────────────────────────────────────────
 # These are the platform-wide fallback values when a deployment does not supply
 # an explicit RollbackPolicy.  All threshold semantics match the openapi.yaml

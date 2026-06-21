@@ -21,6 +21,7 @@ from ..models import (
 )
 from config.defaults import EVAL_STATE_QUEUED
 from datetime import datetime, timezone
+from .auth import AuthDep
 from .deps import JudgeDep, StoreDep
 
 router = APIRouter()
@@ -41,6 +42,7 @@ def start_regression_check(
     body: RegressionCreate,
     store: StoreDep,
     judge: JudgeDep,
+    _auth: AuthDep,
 ) -> RegressionResult:
     """Compare candidate version behavior against a baseline version."""
     agent = store.get_agent(agentId)
@@ -65,7 +67,7 @@ def start_regression_check(
         startedAt=_now(),
     )
     store.create_evaluation(baseline_run)
-    store._register_evaluation_for_agent(agentId, baseline_run.evaluationId)
+    store.register_evaluation_for_agent(agentId, baseline_run.evaluationId)
     baseline_eval = run_evaluation_sync(store, agentId, baseline_run, judge)
 
     # Evaluate candidate version
@@ -77,7 +79,7 @@ def start_regression_check(
         startedAt=_now(),
     )
     store.create_evaluation(candidate_run)
-    store._register_evaluation_for_agent(agentId, candidate_run.evaluationId)
+    store.register_evaluation_for_agent(agentId, candidate_run.evaluationId)
     candidate_eval = run_evaluation_sync(store, agentId, candidate_run, judge)
 
     # Compare

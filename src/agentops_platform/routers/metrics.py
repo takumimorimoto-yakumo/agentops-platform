@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Response, status
 
 from ..models import MetricIngest
+from .auth import AuthDep
 from .deps import StoreDep
 
 router = APIRouter()
@@ -24,6 +25,7 @@ def ingest_metrics(
     agentId: str,
     body: MetricIngest,
     store: StoreDep,
+    _auth: AuthDep,
 ) -> Response:
     """Ingest external outcome metrics for an agent version.
 

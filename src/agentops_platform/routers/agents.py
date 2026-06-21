@@ -14,13 +14,14 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 
 from ..models import Agent, AgentCreate, AgentVersion, AgentVersionCreate
+from .auth import AuthDep
 from .deps import StoreDep
 
 router = APIRouter()
 
 
 @router.post("/agents", response_model=Agent, status_code=status.HTTP_201_CREATED, tags=["agents"])
-def register_agent(body: AgentCreate, store: StoreDep) -> Agent:
+def register_agent(body: AgentCreate, store: StoreDep, _auth: AuthDep) -> Agent:
     """Register an agent under management."""
     return store.create_agent(body)
 
@@ -46,7 +47,7 @@ def get_agent(agentId: str, store: StoreDep) -> Agent:
     status_code=status.HTTP_201_CREATED,
     tags=["versions"],
 )
-def create_version(agentId: str, body: AgentVersionCreate, store: StoreDep) -> AgentVersion:
+def create_version(agentId: str, body: AgentVersionCreate, store: StoreDep, _auth: AuthDep) -> AgentVersion:
     """Register a new agent version (deployable artifact)."""
     version = store.create_version(agentId, body)
     if version is None:

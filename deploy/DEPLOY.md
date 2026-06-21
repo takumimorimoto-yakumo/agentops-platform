@@ -101,7 +101,8 @@ IMAGE_TAG=<TAG> \
 | `AGENTOPS_REPOSITORY_BACKEND` | no | `memory` | `memory` or `sqlite` |
 | `AGENTOPS_JUDGE_BACKEND` | no | `stub` | `stub` or `gemini` |
 | `AGENTOPS_JUDGE_MODEL` | no | `gemini-2.0-flash` | Gemini model id for judge |
-| `AGENTOPS_AUTH_MODE` | no | `none` | `none` (dev) or `google_id_token` (prod) |
+| `AGENTOPS_AUTH_MODE` | no | `none` | `none` (dev) or `google-id-token` (prod) |
+| `AGENTOPS_AUTH_AUDIENCE` | no | `$AGENTOPS_CONTROL_PLANE_URL` | Expected `aud` claim in ID tokens (usually the Cloud Run service URL) |
 | `AGENTOPS_CANARY_DEFAULT_STEPS` | no | `10,25,50,100` | Comma-separated traffic percentages |
 | `AGENTOPS_ROLLBACK_WINDOW_MINUTES` | no | `15` | Evaluation window in minutes |
 | `LOG_LEVEL` | no | `INFO` | `DEBUG` / `INFO` / `WARNING` |
@@ -114,6 +115,37 @@ Store them in Secret Manager and reference them in `deploy/service.yaml`:
 | Secret name (suggested) | Env var mapped to | Description |
 |---|---|---|
 | `agentops-judge-api-key` | `AGENTOPS_JUDGE_API_KEY` | API key for Gemini judge (if not using ADC) |
+
+---
+
+## Security — IAM + Application-level auth
+
+### Recommended: Cloud Run IAM (outer layer)
+
+For mutating services, deploy with `--no-allow-unauthenticated` to prevent
+unauthenticated access at the Cloud Run infrastructure layer:
+
+```bash
+gcloud run deploy agentops-platform \
+  --image <IMAGE> \
+  --no-allow-unauthenticated \
+  --region <REGION>
+```
+
+Only callers who can obtain a Google identity token (service accounts, GKE
+workload identity, etc.) will be able to reach the service at all.
+
+### Optional: application-level token validation (`AGENTOPS_AUTH_MODE=google-id-token`)
+
+Enable the application-level check when you want fine-grained validation of
+the `aud` claim or when the outer IAM layer is not sufficient:
+
+1. Set `AGENTOPS_AUTH_MODE=google-id-token` in the Cloud Run service environment.
+2. Set `AGENTOPS_AUTH_AUDIENCE` to the Cloud Run service URL
+   (e.g. `https://agentops-platform-xyz-an.a.run.app`).
+3. Callers must include a valid Google OIDC token as `Authorization: Bearer <token>`.
+
+The two layers are complementary. Using both is the recommended production configuration.
 
 ---
 

@@ -109,3 +109,42 @@ class TestMetricsIngest:
             },
         )
         assert resp.status_code == 404
+
+    def test_ingest_samples_at_limit_is_accepted(self, client: TestClient) -> None:
+        """Exactly MAX_METRIC_SAMPLES samples must be accepted (boundary: inclusive upper edge)."""
+        from config.defaults import MAX_METRIC_SAMPLES
+
+        agent_id, version_id = self._setup_agent_version(client)
+        samples = [
+            {"name": f"m{i}", "value": float(i), "observedAt": "2026-06-21T00:00:00Z"}
+            for i in range(MAX_METRIC_SAMPLES)
+        ]
+        resp = client.post(
+            f"/v1/agents/{agent_id}/metrics",
+            json={"versionId": version_id, "source": "load-test", "samples": samples},
+        )
+        assert resp.status_code == 202
+
+    def test_ingest_samples_over_limit_is_rejected(self, client: TestClient) -> None:
+        """MAX_METRIC_SAMPLES + 1 samples must be rejected with HTTP 422 (DoS guard)."""
+        from config.defaults import MAX_METRIC_SAMPLES
+
+        agent_id, version_id = self._setup_agent_version(client)
+        samples = [
+            {"name": f"m{i}", "value": float(i), "observedAt": "2026-06-21T00:00:00Z"}
+            for i in range(MAX_METRIC_SAMPLES + 1)
+        ]
+        resp = client.post(
+            f"/v1/agents/{agent_id}/metrics",
+            json={"versionId": version_id, "source": "attack", "samples": samples},
+        )
+        assert resp.status_code == 422
+
+    def test_ingest_empty_samples_is_accepted(self, client: TestClient) -> None:
+        """Empty samples list should pass (no-op ingest, 0 <= MAX_METRIC_SAMPLES)."""
+        agent_id, version_id = self._setup_agent_version(client)
+        resp = client.post(
+            f"/v1/agents/{agent_id}/metrics",
+            json={"versionId": version_id, "source": "heartbeat", "samples": []},
+        )
+        assert resp.status_code == 202

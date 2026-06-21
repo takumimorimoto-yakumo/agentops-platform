@@ -75,6 +75,8 @@ class AgentStore(Protocol):
     def store_metrics(self, agent_id: str, ingest: MetricIngest) -> None: ...
     def list_metrics(self, agent_id: str) -> list[MetricIngest]: ...
 
+    def register_evaluation_for_agent(self, agent_id: str, evaluation_id: str) -> None: ...
+
     def append_event(self, agent_id: str, event: Event) -> None: ...
     def list_events(self, agent_id: str) -> list[Event]: ...
 
@@ -211,7 +213,7 @@ class MemoryStore:
             self._evaluations[evaluation.evaluationId] = evaluation
             return evaluation
 
-    def _register_evaluation_for_agent(self, agent_id: str, evaluation_id: str) -> None:
+    def register_evaluation_for_agent(self, agent_id: str, evaluation_id: str) -> None:
         """Associate an evaluation with an agent (called from the router)."""
         with self._lock:
             if evaluation_id not in self._agent_evaluations[agent_id]:

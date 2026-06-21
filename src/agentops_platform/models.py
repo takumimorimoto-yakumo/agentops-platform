@@ -10,7 +10,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from config.defaults import MAX_METRIC_SAMPLES
 
 
 # ── Shared ────────────────────────────────────────────────────────────────────
@@ -181,7 +183,20 @@ class MetricSample(BaseModel):
 class MetricIngest(BaseModel):
     versionId: str
     source: str = Field(description="Origin of the outcome metric")
-    samples: list[MetricSample]
+    samples: list[MetricSample] = Field(
+        description=(
+            f"Metric samples to ingest. Maximum {MAX_METRIC_SAMPLES} samples per request."
+        )
+    )
+
+    @field_validator("samples")
+    @classmethod
+    def validate_samples_size(cls, v: list[MetricSample]) -> list[MetricSample]:
+        if len(v) > MAX_METRIC_SAMPLES:
+            raise ValueError(
+                f"samples must contain at most {MAX_METRIC_SAMPLES} items, got {len(v)}"
+            )
+        return v
 
 
 # ── Events ────────────────────────────────────────────────────────────────────

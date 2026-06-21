@@ -96,7 +96,7 @@ class TestCanaryAutoRollback:
             startedAt=_now(),
         )
         store.create_evaluation(run)
-        store._register_evaluation_for_agent(agent_id, run.evaluationId)
+        store.register_evaluation_for_agent(agent_id, run.evaluationId)
         canary_eval = run_evaluation_sync(store, agent_id, run, stub_judge)
 
         # stable baseline (same version, same judge)
@@ -108,7 +108,7 @@ class TestCanaryAutoRollback:
             startedAt=_now(),
         )
         store.create_evaluation(stable_run)
-        store._register_evaluation_for_agent(agent_id, stable_run.evaluationId)
+        store.register_evaluation_for_agent(agent_id, stable_run.evaluationId)
         stable_eval = run_evaluation_sync(store, agent_id, stable_run, stub_judge)
 
         result = apply_policy_check(deployment, canary_eval.scores, stable_eval.scores)
@@ -135,7 +135,7 @@ class TestCanaryAutoRollback:
             startedAt=_now(),
         )
         store.create_evaluation(stable_run)
-        store._register_evaluation_for_agent(agent_id, stable_run.evaluationId)
+        store.register_evaluation_for_agent(agent_id, stable_run.evaluationId)
         stable_eval = run_evaluation_sync(store, agent_id, stable_run, stub_judge)
 
         # Canary version evaluated with degraded judge
@@ -153,7 +153,7 @@ class TestCanaryAutoRollback:
             startedAt=_now(),
         )
         store.create_evaluation(canary_run)
-        store._register_evaluation_for_agent(agent_id, canary_run.evaluationId)
+        store.register_evaluation_for_agent(agent_id, canary_run.evaluationId)
         canary_eval = run_evaluation_sync(store, agent_id, canary_run, degraded_judge)
 
         result = apply_policy_check(deployment, canary_eval.scores, stable_eval.scores)

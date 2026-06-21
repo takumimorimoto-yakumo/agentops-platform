@@ -195,7 +195,7 @@ def run_demo(store: Any, settings: Any) -> dict[str, Any]:  # type: ignore[retur
         startedAt=datetime.now(tz=timezone.utc),
     )
     store.create_evaluation(baseline_eval_record)
-    store._register_evaluation_for_agent(agent.agentId, baseline_eval_record.evaluationId)
+    store.register_evaluation_for_agent(agent.agentId, baseline_eval_record.evaluationId)
     baseline_eval = run_evaluation_sync(store, agent.agentId, baseline_eval_record, baseline_judge)
     _event("EVAL", f"baseline evaluation succeeded (drift={_BASELINE_DRIFT}, trajectory={_BASELINE_TRAJECTORY})")
 
@@ -279,7 +279,7 @@ def run_demo(store: Any, settings: Any) -> dict[str, Any]:  # type: ignore[retur
         startedAt=datetime.now(tz=timezone.utc),
     )
     store.create_evaluation(canary_eval_record)
-    store._register_evaluation_for_agent(agent.agentId, canary_eval_record.evaluationId)
+    store.register_evaluation_for_agent(agent.agentId, canary_eval_record.evaluationId)
     canary_eval = run_evaluation_sync(store, agent.agentId, canary_eval_record, degraded_judge)
     _event(
         "EVAL",

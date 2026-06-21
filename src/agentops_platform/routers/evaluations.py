@@ -24,6 +24,7 @@ from ..models import (
     EvaluationCreate,
     EvaluationRun,
 )
+from .auth import AuthDep
 from .deps import JudgeDep, StoreDep
 
 router = APIRouter()
@@ -39,7 +40,7 @@ def _now() -> datetime:
     status_code=status.HTTP_201_CREATED,
     tags=["evaluations"],
 )
-def create_eval_suite(agentId: str, body: EvalSuiteCreate, store: StoreDep) -> EvalSuite:
+def create_eval_suite(agentId: str, body: EvalSuiteCreate, store: StoreDep, _auth: AuthDep) -> EvalSuite:
     """Register an evaluation suite (ADK Eval dataset reference)."""
     suite = store.create_eval_suite(agentId, body)
     if suite is None:
@@ -77,6 +78,7 @@ def start_evaluation(
     body: EvaluationCreate,
     store: StoreDep,
     judge: JudgeDep,
+    _auth: AuthDep,
 ) -> EvaluationRun:
     """Start an evaluation run for a version.
 
@@ -100,7 +102,7 @@ def start_evaluation(
         startedAt=_now(),
     )
     store.create_evaluation(run)
-    store._register_evaluation_for_agent(agentId, run.evaluationId)
+    store.register_evaluation_for_agent(agentId, run.evaluationId)
 
     # Run synchronously (async job dispatch is Wave 2 scope)
     completed = run_evaluation_sync(store, agentId, run, judge)

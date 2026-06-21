@@ -149,7 +149,7 @@ def _run_eval(
         startedAt=_now(),
     )
     store.create_evaluation(run)
-    store._register_evaluation_for_agent(agent_id, run.evaluationId)
+    store.register_evaluation_for_agent(agent_id, run.evaluationId)
     return run_evaluation_sync(store, agent_id, run, judge)
 
 

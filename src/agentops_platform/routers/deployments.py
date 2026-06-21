@@ -32,6 +32,7 @@ from ..rollback import (
     promote_deployment,
     rollback_deployment,
 )
+from .auth import AuthDep
 from .deps import StoreDep
 
 router = APIRouter()
@@ -69,6 +70,7 @@ def create_deployment(
     agentId: str,
     body: DeploymentCreate,
     store: StoreDep,
+    _auth: AuthDep,
 ) -> Deployment:
     """Deploy a version with a canary strategy and rollback policy."""
     agent = store.get_agent(agentId)
@@ -164,7 +166,7 @@ def get_deployment(deploymentId: str, store: StoreDep) -> Deployment:
     response_model=Deployment,
     tags=["deployments"],
 )
-def promote_deployment_endpoint(deploymentId: str, store: StoreDep) -> Deployment:
+def promote_deployment_endpoint(deploymentId: str, store: StoreDep, _auth: AuthDep) -> Deployment:
     """Promote the canary to 100% traffic."""
     deployment = store.get_deployment(deploymentId)
     if deployment is None:
@@ -201,6 +203,7 @@ def promote_deployment_endpoint(deploymentId: str, store: StoreDep) -> Deploymen
 def rollback_deployment_endpoint(
     deploymentId: str,
     store: StoreDep,
+    _auth: AuthDep,
     body: Optional[RollbackRequest] = None,
 ) -> Deployment:
     """Roll back to the previous stable version."""
