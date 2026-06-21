@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from config.defaults import get_settings
+from .dashboard import router as dashboard_router
 from .routers import agents, deployments, evaluations, events, metrics, regressions
 
 settings = get_settings()
@@ -36,6 +37,7 @@ app.include_router(regressions.router, prefix=PREFIX)
 app.include_router(deployments.router, prefix=PREFIX)
 app.include_router(metrics.router, prefix=PREFIX)
 app.include_router(events.router, prefix=PREFIX)
+app.include_router(dashboard_router)  # no prefix; served at /dashboard
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

@@ -47,6 +47,20 @@ class Settings(BaseSettings):
     google_cloud_project: str = Field(default="")
     google_cloud_region: str = Field(default="asia-northeast1")
 
+    # ── Meta-agent (Wave 2) ───────────────────────────────────────────────
+    # PR mode: "dryrun" = generate patch/body locally only; "gh" = create real PR.
+    pr_mode: Literal["dryrun", "gh"] = Field(default="dryrun")
+    # Gray-zone thresholds: the meta-agent watches these softer limits.
+    # When they are breached but the hard safety-floor is NOT, the meta-agent
+    # decides whether to advance, hold, or rollback (with LLM reasoning).
+    # Safety-floor thresholds (DEFAULT_MAX_*) are always evaluated first.
+    meta_agent_drift_warn: float = Field(default=0.05)        # 5% drop triggers concern
+    meta_agent_trajectory_warn: float = Field(default=0.05)   # 5% drop triggers concern
+    meta_agent_cost_warn: float = Field(default=0.20)          # 20% increase triggers concern
+    meta_agent_latency_warn_ms: float = Field(default=1500.0)  # 1500 ms soft ceiling
+    # Base URL for the control-plane API (used by the meta-agent to call back)
+    control_plane_url: str = Field(default="http://localhost:8080")
+
     @property
     def canary_steps(self) -> list[int]:
         """Parse the comma-separated canary steps string into a list of ints."""
@@ -97,6 +111,18 @@ EVENT_DEPLOYMENT_CREATED = "deployment.created"
 EVENT_DEPLOYMENT_STEP_ADVANCED = "deployment.step_advanced"
 EVENT_DEPLOYMENT_PROMOTED = "deployment.promoted"
 EVENT_DEPLOYMENT_ROLLED_BACK = "deployment.rolled_back"
+EVENT_META_AGENT_DECISION = "meta_agent.decision"
+
+# ── Meta-agent decision enum ──────────────────────────────────────────────────
+
+META_DECISION_ADVANCE = "advance"
+META_DECISION_HOLD = "hold"
+META_DECISION_ROLLBACK = "rollback"
+
+# ── PR mode ───────────────────────────────────────────────────────────────────
+
+PR_MODE_DRYRUN = "dryrun"
+PR_MODE_GH = "gh"
 
 
 @lru_cache(maxsize=1)

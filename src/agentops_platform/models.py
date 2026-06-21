@@ -208,3 +208,53 @@ class Event(BaseModel):
 
 class RollbackRequest(BaseModel):
     reason: str | None = None
+
+
+# ── Meta-agent (Wave 2) ───────────────────────────────────────────────────────
+
+
+class GrayZoneSignal(BaseModel):
+    """Soft-limit breach signals that the meta-agent uses for gray-zone decisions."""
+
+    drift_drop: float = Field(default=0.0, description="Observed drift drop (stable − canary)")
+    trajectory_drop: float = Field(default=0.0, description="Observed trajectory drop")
+    cost_increase_ratio: float = Field(default=0.0, description="Cost increase ratio (0..N)")
+    canary_latency_ms: float = Field(default=0.0, description="Canary p95 latency in ms")
+    outcome_metrics: dict[str, float] = Field(
+        default_factory=dict,
+        description="Ingested outcome metric averages keyed by name",
+    )
+
+
+class DecisionRecord(BaseModel):
+    """Audit record of a single meta-agent decision cycle."""
+
+    decisionId: str
+    deploymentId: str
+    evaluationId: str | None = None
+    action: Literal["advance", "hold", "rollback"]
+    rationale: str = Field(description="Human-readable explanation of the decision")
+    signal: GrayZoneSignal
+    prDraftId: str | None = Field(
+        default=None,
+        description="ID of the associated PRDraft when action==rollback",
+    )
+    decidedAt: datetime
+
+
+class PRDraft(BaseModel):
+    """Draft of an improvement PR generated when the meta-agent rolls back."""
+
+    prDraftId: str
+    deploymentId: str
+    decisionId: str
+    title: str
+    body: str = Field(description="Full PR body with diagnosis, diff analysis, and suggestions")
+    mode: Literal["dryrun", "gh"] = Field(
+        description="dryrun=local draft only; gh=real PR created via gh CLI"
+    )
+    prUrl: str | None = Field(
+        default=None,
+        description="GitHub PR URL (only set when mode==gh and creation succeeded)",
+    )
+    createdAt: datetime
