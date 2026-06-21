@@ -1,0 +1,47 @@
+# Version control
+.git
+.gitignore
+
+# Python artifacts
+__pycache__
+*.py[cod]
+*$py.class
+.venv
+venv
+*.egg-info
+dist
+build
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local environment files (secrets must never be in the image)
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+.claude/hooks/local/
+
+# Tests (not needed in the runtime image)
+tests/
+
+# Docs
+docs/
+*.md
+api/
+
+# Node artifacts (if any frontend is ever added)
+node_modules/
+.next/
