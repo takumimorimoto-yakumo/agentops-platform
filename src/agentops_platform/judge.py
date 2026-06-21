@@ -4,10 +4,14 @@ Evaluation judge interface and implementations.
 JudgeProtocol defines the interface that all judge implementations must satisfy.
 StubJudge is the deterministic implementation used for local dev and tests.
 
-GeminiJudge uses the Gemini API (via google-genai) for real LLM-as-judge scoring.
-Switch via AGENTOPS_JUDGE_BACKEND env var:
+GeminiJudge uses the Gemini API for real LLM-as-judge scoring.  The backend
+(AI Studio or Vertex AI) is controlled by AGENTOPS_GEMINI_BACKEND:
+  - "aistudio" (default) — requires GOOGLE_API_KEY
+  - "vertex"             — uses ADC + GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION
+
+Switch the judge implementation via AGENTOPS_JUDGE_BACKEND:
   - "stub"   (default) → StubJudge (no LLM call, CI/dev safe)
-  - "gemini"           → GeminiJudge (requires AGENTOPS_JUDGE_MODEL + GOOGLE_API_KEY or ADC)
+  - "gemini"           → GeminiJudge (requires AGENTOPS_JUDGE_MODEL + credentials)
 """
 
 from __future__ import annotations
@@ -116,9 +120,12 @@ class StubJudge:
 class GeminiJudge:
     """LLM-as-judge using the Gemini API for drift scoring.
 
-    Uses google-genai (the unified Google AI Python SDK).  The model ID is
-    read from the platform config (never hard-coded).  Requires either a
-    GOOGLE_API_KEY environment variable or Application Default Credentials.
+    Supports two Gemini backends via gemini_client.generate_text():
+      - "aistudio" (default): google-generativeai SDK, GOOGLE_API_KEY auth.
+      - "vertex": Vertex AI SDK (google-cloud-aiplatform), ADC auth.
+
+    The backend is read from AGENTOPS_GEMINI_BACKEND (via Settings).
+    The model ID is read from the platform config (never hard-coded).
 
     Only the 'drift' axis is scored by the LLM; trajectory/cost/latency are
     returned as pass-through stubs so the caller receives a complete AxisScore
@@ -154,15 +161,12 @@ Respond with ONLY a decimal number between 0.0 and 1.0 on a single line.
         Args:
             model_id: Gemini model identifier from config (e.g. "gemini-2.0-flash").
         """
-        try:
-            import google.generativeai as genai  # type: ignore[import-untyped]
-        except ImportError as exc:
-            raise ImportError(
-                "google-generativeai is required for GeminiJudge. "
-                "Install it with: pip install google-generativeai"
-            ) from exc
-        self._genai = genai
+        from config.defaults import get_settings
+        from .gemini_client import generate_text as _generate
+
         self._model_id = model_id
+        self._settings = get_settings()
+        self._generate = _generate
 
     def evaluate(
         self,
@@ -201,28 +205,42 @@ Respond with ONLY a decimal number between 0.0 and 1.0 on a single line.
         ]
 
     def _score_drift(self, model_id: str) -> float:
-        """Call the Gemini API and parse the drift score."""
+        """Call Gemini via the configured backend and parse the drift score."""
+        import logging
+
         prompt = self._DRIFT_PROMPT_TEMPLATE.format(
             reference="[reference response placeholder]",
             candidate="[candidate response placeholder]",
         )
-        try:
-            model = self._genai.GenerativeModel(model_id)
-            response = model.generate_content(prompt)
-            raw = (response.text or "").strip()
-            return max(0.0, min(1.0, float(raw)))
-        except Exception as exc:  # noqa: BLE001
-            # Return a neutral score on transient errors so a single API
-            # hiccup does not immediately trigger a rollback.
-            import logging
+        cfg = self._settings
+        raw = self._generate(
+            prompt,
+            model_id,
+            backend=cfg.gemini_backend,
+            api_key=cfg.google_api_key,
+            project=cfg.google_cloud_project,
+            location=cfg.google_cloud_location,
+        )
+        if not raw:
             logging.getLogger(__name__).warning(
-                "GeminiJudge._score_drift failed (model=%s): %s", model_id, exc
+                "GeminiJudge._score_drift: empty response (model=%s), using neutral score",
+                model_id,
+            )
+            return 0.80
+        try:
+            return max(0.0, min(1.0, float(raw)))
+        except ValueError as exc:
+            logging.getLogger(__name__).warning(
+                "GeminiJudge._score_drift failed to parse float (model=%s): %s", model_id, exc
             )
             return 0.80
 
 
 def get_judge(backend: str = "stub") -> JudgeProtocol:
     """Factory that returns the configured judge implementation.
+
+    The Gemini backend (AI Studio vs Vertex AI) is controlled separately
+    by AGENTOPS_GEMINI_BACKEND and is read from Settings inside GeminiJudge.
 
     Args:
         backend: "stub" for the deterministic stub, "gemini" for the real

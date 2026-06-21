@@ -36,6 +36,19 @@ class Settings(BaseSettings):
     judge_model: str = Field(default="gemini-2.0-flash")
     judge_backend: Literal["stub", "gemini"] = Field(default="stub")
 
+    # ── Gemini backend ────────────────────────────────────────────────────
+    # "aistudio" (default) — uses google-generativeai with GOOGLE_API_KEY.
+    # "vertex"             — uses Vertex AI SDK (ADC + project/location, no API key needed).
+    gemini_backend: Literal["aistudio", "vertex"] = Field(default="aistudio")
+
+    # AI Studio API key (required when gemini_backend=aistudio).
+    # Leave blank when using Vertex AI (ADC is used instead).
+    google_api_key: str = Field(default="")
+
+    # Vertex AI location (region) — used when gemini_backend=vertex.
+    # Defaults to asia-northeast1 to match google_cloud_region.
+    google_cloud_location: str = Field(default="asia-northeast1")
+
     # ── Canary defaults ───────────────────────────────────────────────────
     canary_default_steps: str = Field(default="10,25,50,100")
     rollback_window_minutes: int = Field(default=15)

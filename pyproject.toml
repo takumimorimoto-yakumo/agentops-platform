@@ -18,6 +18,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# AI Studio judge backend (google-generativeai)
+aistudio = [
+    "google-generativeai>=0.8.0",
+]
+# Vertex AI judge backend (google-cloud-aiplatform / vertexai)
+vertex = [
+    "google-cloud-aiplatform>=1.60.0",
+]
 dev = [
     "pytest>=8.2.0",
     "pytest-asyncio>=0.23.0",

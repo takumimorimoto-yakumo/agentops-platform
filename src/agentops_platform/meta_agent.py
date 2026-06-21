@@ -199,16 +199,32 @@ Respond with a JSON object and nothing else:
 def _call_gemini_judge(
     prompt: str,
     model_id: str,
+    settings: "Settings | None" = None,
 ) -> tuple[Literal["advance", "hold", "rollback"], str]:
     """Call the Gemini API and parse the action/rationale JSON.
 
+    Routes to AI Studio or Vertex AI based on settings.gemini_backend.
     Returns a safe default of ("hold", <reason>) on any error.
+
+    Args:
+        prompt:   The judgment prompt to send.
+        model_id: Gemini model identifier (from config).
+        settings: Platform settings.  If None, reads from get_settings().
     """
+    from .gemini_client import generate_text
+
+    cfg = settings or get_settings()
     try:
-        import google.generativeai as genai  # type: ignore[import-untyped]
-        model = genai.GenerativeModel(model_id)
-        response = model.generate_content(prompt)
-        raw = (response.text or "").strip()
+        raw = generate_text(
+            prompt,
+            model_id,
+            backend=cfg.gemini_backend,
+            api_key=cfg.google_api_key,
+            project=cfg.google_cloud_project,
+            location=cfg.google_cloud_location,
+        )
+        if not raw:
+            raise ValueError("Empty response from Gemini")
         # Strip markdown code fences if present
         if raw.startswith("```"):
             raw = "\n".join(
@@ -268,7 +284,7 @@ def _decide_gray_zone(
             traffic_pct=deployment.currentTrafficPercent or 0,
             steps_remaining=steps_remaining,
         )
-        return _call_gemini_judge(prompt, model_id=settings.judge_model)
+        return _call_gemini_judge(prompt, model_id=settings.judge_model, settings=settings)
 
     # Deterministic fallback heuristics (used in tests and when judge_backend=stub)
     aggressive_warn_drift = settings.meta_agent_drift_warn * 1.5
