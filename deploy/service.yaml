@@ -1,0 +1,70 @@
+# deploy/service.yaml — Cloud Run service configuration reference.
+#
+# This file documents the intended service settings in YAML form.
+# Use it as a reference when configuring the service via the Console or gcloud.
+# To apply directly:
+#   gcloud run services replace deploy/service.yaml --region=<REGION>
+#
+# Replace <PROJECT_ID>, <REGION>, <REPO>, <IMAGE_TAG> before applying.
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: agentops-platform
+  annotations:
+    run.googleapis.com/ingress: internal-and-cloud-load-balancing
+
+spec:
+  template:
+    metadata:
+      annotations:
+        # Scale to zero when idle; max 10 instances
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      # Require authenticated requests (no public access)
+      # Callers must present a Google-signed OIDC ID token.
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: agentops-platform-sa@<PROJECT_ID>.iam.gserviceaccount.com
+
+      containers:
+        - image: "<REGION>-docker.pkg.dev/<PROJECT_ID>/<REPO>/agentops-platform:<IMAGE_TAG>"
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+
+          # ── Non-secret environment variables ─────────────────────────────
+          env:
+            - name: GOOGLE_CLOUD_PROJECT
+              value: "<PROJECT_ID>"
+            - name: GOOGLE_CLOUD_REGION
+              value: "<REGION>"
+            - name: AGENTOPS_REPOSITORY_BACKEND
+              value: "memory"
+            - name: AGENTOPS_JUDGE_BACKEND
+              value: "gemini"
+            - name: AGENTOPS_AUTH_MODE
+              value: "google_id_token"
+            - name: AGENTOPS_CANARY_DEFAULT_STEPS
+              value: "10,25,50,100"
+            - name: AGENTOPS_ROLLBACK_WINDOW_MINUTES
+              value: "15"
+            - name: LOG_LEVEL
+              value: "INFO"
+
+          # ── Secrets from Secret Manager ──────────────────────────────────
+          # Add secrets here; values are NEVER embedded in this file.
+          # The service account must have roles/secretmanager.secretAccessor.
+          #
+          # Example:
+          # - name: AGENTOPS_JUDGE_API_KEY
+          #   valueFrom:
+          #     secretKeyRef:
+          #       name: agentops-judge-api-key   # Secret Manager secret name
+          #       key: latest                     # version alias
+
+          ports:
+            - containerPort: 8080
+              protocol: TCP

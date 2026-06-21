@@ -1,0 +1,79 @@
+# Cloud Build — build, push to Artifact Registry, and deploy to Cloud Run.
+#
+# Substitutions (override via --substitutions or trigger config):
+#   _PROJECT_ID   : GCP project id
+#   _REGION       : artifact + Cloud Run region (e.g. asia-northeast1)
+#   _REPO         : Artifact Registry Docker repository name
+#   _SERVICE_NAME : Cloud Run service name
+#   _IMAGE_TAG    : image tag (defaults to git short SHA)
+#
+# Default values defined under substitutions are used when the variable is not
+# supplied explicitly. Cloud Build replaces $COMMIT_SHA automatically.
+
+substitutions:
+  _PROJECT_ID: "your-gcp-project-id"
+  _REGION: "asia-northeast1"
+  _REPO: "agentops"
+  _SERVICE_NAME: "agentops-platform"
+  _IMAGE_TAG: "${COMMIT_SHA}"
+
+# Derive the full image reference once so every step is consistent.
+# IMAGE = ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}
+
+steps:
+  # ── Step 1: Build the container image ────────────────────────────────────────
+  - id: "build"
+    name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "--tag"
+      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}"
+      - "--tag"
+      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:latest"
+      - "--cache-from"
+      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:latest"
+      - "."
+
+  # ── Step 2: Push all tags to Artifact Registry ───────────────────────────────
+  - id: "push"
+    name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE_NAME}"
+    waitFor:
+      - "build"
+
+  # ── Step 3: Deploy to Cloud Run ──────────────────────────────────────────────
+  - id: "deploy"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    entrypoint: "gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE_NAME}"
+      - "--image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--no-allow-unauthenticated"
+      # Resource / concurrency
+      - "--memory=512Mi"
+      - "--cpu=1"
+      - "--concurrency=80"
+      - "--min-instances=0"
+      - "--max-instances=10"
+      # Environment variables — values must be set in the Cloud Run service config
+      # or injected via Secret Manager (see deploy/deploy.sh for guidance).
+      - "--update-env-vars=AGENTOPS_REPOSITORY_BACKEND=memory"
+      - "--update-env-vars=AGENTOPS_AUTH_MODE=google_id_token"
+      - "--update-env-vars=GOOGLE_CLOUD_PROJECT=${_PROJECT_ID}"
+      - "--update-env-vars=GOOGLE_CLOUD_REGION=${_REGION}"
+    waitFor:
+      - "push"
+
+images:
+  - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:${_IMAGE_TAG}"
+  - "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO}/${_SERVICE_NAME}:latest"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
