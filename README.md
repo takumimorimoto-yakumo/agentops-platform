@@ -134,7 +134,7 @@ Key environment variables:
 | Variable | Default | Description |
 |---|---|---|
 | `AGENTOPS_JUDGE_BACKEND` | `stub` | `stub` (no LLM) or `gemini` (real judge) |
-| `AGENTOPS_JUDGE_MODEL` | `gemini-2.0-flash` | Gemini model for drift scoring |
+| `AGENTOPS_JUDGE_MODEL` | `gemini-2.5-flash` | Gemini model for drift scoring |
 | `AGENTOPS_PR_MODE` | `dryrun` | `dryrun` (local PR body) or `gh` (real GitHub PR) |
 | `AGENTOPS_AUTH_MODE` | `none` | `none` (dev) or `google-id-token` (production) |
 | `AGENTOPS_META_AGENT_DRIFT_WARN` | `0.05` | Soft drift-drop threshold triggering gray-zone judgment |

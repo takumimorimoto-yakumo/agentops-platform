@@ -37,7 +37,7 @@ def generate_text(prompt: str, model_id: str, backend: str = "aistudio", **kwarg
 
     Args:
         prompt:   The text prompt to send.
-        model_id: Gemini model identifier (e.g. "gemini-2.0-flash").
+        model_id: Gemini model identifier (e.g. "gemini-2.5-flash").
         backend:  "aistudio" or "vertex".  Reads GOOGLE_API_KEY or ADC
                   respectively.
         **kwargs: Extra keyword arguments forwarded to the backend:

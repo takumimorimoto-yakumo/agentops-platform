@@ -162,7 +162,7 @@ def run_demo(store: Any, settings: Any) -> dict[str, Any]:  # type: ignore[retur
         agent.agentId,
         AgentVersionCreate(
             image="registry.example.com/demo-agent@sha256:stable001",
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             promptDigest="sha256:baseline-prompt-v1",
             gitCommit="abc1234",
         ),
@@ -223,7 +223,7 @@ def run_demo(store: Any, settings: Any) -> dict[str, Any]:  # type: ignore[retur
         agent.agentId,
         AgentVersionCreate(
             image="registry.example.com/demo-agent@sha256:candidate-degraded002",
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             promptDigest="sha256:candidate-prompt-v2-degraded",
             gitCommit="def5678",
         ),

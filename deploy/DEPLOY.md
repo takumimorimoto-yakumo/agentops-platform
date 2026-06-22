@@ -100,7 +100,7 @@ IMAGE_TAG=<TAG> \
 | `GOOGLE_CLOUD_REGION` | yes | — | Cloud Run region |
 | `AGENTOPS_REPOSITORY_BACKEND` | no | `memory` | `memory` or `sqlite` |
 | `AGENTOPS_JUDGE_BACKEND` | no | `stub` | `stub` or `gemini` |
-| `AGENTOPS_JUDGE_MODEL` | no | `gemini-2.0-flash` | Gemini model id for judge |
+| `AGENTOPS_JUDGE_MODEL` | no | `gemini-2.5-flash` | Gemini model id for judge |
 | `AGENTOPS_AUTH_MODE` | no | `none` | `none` (dev) or `google-id-token` (prod) |
 | `AGENTOPS_AUTH_AUDIENCE` | no | `$AGENTOPS_CONTROL_PLANE_URL` | Expected `aud` claim in ID tokens (usually the Cloud Run service URL) |
 | `AGENTOPS_CANARY_DEFAULT_STEPS` | no | `10,25,50,100` | Comma-separated traffic percentages |

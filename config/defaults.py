@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     db_url: str = Field(default="sqlite:///./agentops.db")
 
     # ── Evaluation / Judge ────────────────────────────────────────────────
-    judge_model: str = Field(default="gemini-2.0-flash")
+    judge_model: str = Field(default="gemini-2.5-flash")
     judge_backend: Literal["stub", "gemini"] = Field(default="stub")
 
     # ── Gemini backend ────────────────────────────────────────────────────

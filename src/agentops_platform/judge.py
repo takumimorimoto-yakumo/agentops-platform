@@ -163,7 +163,7 @@ Respond with ONLY a decimal number between 0.0 and 1.0 on a single line.
         """Initialize the Gemini judge.
 
         Args:
-            model_id: Gemini model identifier from config (e.g. "gemini-2.0-flash").
+            model_id: Gemini model identifier from config (e.g. "gemini-2.5-flash").
         """
         from config.defaults import get_settings
         from .gemini_client import generate_text as _generate
