@@ -1,11 +1,18 @@
 """
 Gemini API client abstraction with backend switching.
 
-Supports two backends controlled by AGENTOPS_GEMINI_BACKEND:
-  - "aistudio" (default): google-generativeai SDK with GOOGLE_API_KEY.
-  - "vertex": Vertex AI SDK (google-cloud-aiplatform) with Application Default
-    Credentials (ADC).  Requires GOOGLE_CLOUD_PROJECT and
-    GOOGLE_CLOUD_LOCATION (no API key needed).
+Supports two backends controlled by AGENTOPS_GEMINI_BACKEND, both served by
+the unified ``google-genai`` SDK (``from google import genai``):
+
+  - "aistudio" (default):
+      ``genai.Client(api_key=<GOOGLE_API_KEY>)``
+      Suitable for individual developers and quick prototyping.
+
+  - "vertex":
+      ``genai.Client(vertexai=True, project=<PROJECT>, location=<LOCATION>)``
+      Uses Application Default Credentials (ADC).  No API key needed.
+      Suitable for production deployments on Google Cloud / Gemini Enterprise
+      Agent Platform (formerly Vertex AI).
 
 Both backends expose the same interface:
     generate_text(prompt: str, model_id: str) -> str
@@ -13,9 +20,9 @@ Both backends expose the same interface:
 The function returns an empty string on import errors or API errors (letting
 callers apply their own fallback logic).
 
-Lazy imports are used so that only the required SDK needs to be installed.
-For example, a deployment using Vertex AI does not need google-generativeai,
-and vice versa.
+The ``google-genai`` package (PyPI: google-genai, import: ``from google import
+genai``) is the single unified SDK covering both AI Studio and the Gemini
+Enterprise Agent Platform (Vertex AI API).
 """
 
 from __future__ import annotations
@@ -47,24 +54,24 @@ def generate_text(prompt: str, model_id: str, backend: str = "aistudio", **kwarg
 
 
 def _generate_aistudio(prompt: str, model_id: str, api_key: str = "", **_: object) -> str:
-    """Generate text via AI Studio (google-generativeai SDK).
+    """Generate text via AI Studio using the unified google-genai SDK.
 
-    Requires: pip install google-generativeai
+    Requires: pip install google-genai
     Auth:     GOOGLE_API_KEY environment variable (or api_key kwarg).
+              The SDK also auto-picks up GOOGLE_API_KEY from the environment
+              when api_key is not supplied explicitly.
     """
     try:
-        import google.generativeai as genai  # type: ignore[import-untyped]
+        from google import genai  # type: ignore[import-untyped]
 
-        if api_key:
-            genai.configure(api_key=api_key)
-
-        model = genai.GenerativeModel(model_id)
-        response = model.generate_content(prompt)
-        return (response.text or "").strip()
+        client = genai.Client(api_key=api_key if api_key else None)
+        response = client.models.generate_content(model=model_id, contents=prompt)
+        text: str = response.text or ""
+        return text.strip()
     except ImportError:
         logger.error(
-            "google-generativeai is not installed. "
-            "Install it with: pip install google-generativeai"
+            "google-genai is not installed. "
+            "Install it with: pip install google-genai"
         )
         return ""
     except Exception as exc:  # noqa: BLE001
@@ -79,26 +86,36 @@ def _generate_vertex(
     location: str = "us-central1",
     **_: object,
 ) -> str:
-    """Generate text via Vertex AI (google-cloud-aiplatform / vertexai SDK).
+    """Generate text via the Gemini Enterprise Agent Platform using the unified google-genai SDK.
 
-    Requires: pip install google-cloud-aiplatform
+    Formerly known as Vertex AI; now accessible via the same google-genai SDK
+    with ``vertexai=True``.
+
+    Requires: pip install google-genai
     Auth:     Application Default Credentials (ADC).
-              Run `gcloud auth application-default login` or use a service account.
+              Run ``gcloud auth application-default login`` or use a service account.
     """
     try:
-        import vertexai  # type: ignore[import-untyped]
-        from vertexai.generative_models import GenerativeModel  # type: ignore[import-untyped]
+        from google import genai  # type: ignore[import-untyped]
 
-        vertexai.init(project=project or None, location=location or "us-central1")
-        model = GenerativeModel(model_id)
-        response = model.generate_content(prompt)
-        return (response.text or "").strip()
+        client = genai.Client(
+            vertexai=True,
+            project=project or None,
+            location=location or "us-central1",
+        )
+        response = client.models.generate_content(model=model_id, contents=prompt)
+        text: str = response.text or ""
+        return text.strip()
     except ImportError:
         logger.error(
-            "google-cloud-aiplatform is not installed. "
-            "Install it with: pip install google-cloud-aiplatform"
+            "google-genai is not installed. "
+            "Install it with: pip install google-genai"
         )
         return ""
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Vertex AI generate_text failed (model=%s): %s", model_id, exc)
+        logger.warning(
+            "Gemini Enterprise Agent Platform generate_text failed (model=%s): %s",
+            model_id,
+            exc,
+        )
         return ""

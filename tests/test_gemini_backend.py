@@ -1,17 +1,20 @@
 """
-Unit tests for Gemini backend switching.
+Unit tests for Gemini backend switching (unified google-genai SDK).
 
 Covers:
   - gemini_client.generate_text routes to the correct backend based on the
     `backend` argument.
-  - AI Studio path: calls google.generativeai.GenerativeModel.generate_content
-  - Vertex AI path: calls vertexai.init + GenerativeModel.generate_content
+  - AI Studio path: calls genai.Client(api_key=...) then
+    client.models.generate_content(model=..., contents=...)
+  - Vertex / Gemini Enterprise Agent Platform path: calls
+    genai.Client(vertexai=True, project=..., location=...) then
+    client.models.generate_content(model=..., contents=...)
   - Both paths return the model's text on success.
   - Both paths return "" on import error (SDK not installed).
   - Both paths return "" on API error (graceful degradation).
   - Settings.gemini_backend defaults to "aistudio".
   - MetaAgentCycle._call_gemini_judge uses gemini_client.generate_text
-    (via the settings-driven backend), not google.generativeai directly.
+    (via the settings-driven backend), not google.genai directly.
   - GeminiJudge._score_drift uses gemini_client.generate_text.
   - Stub judge default: existing tests stay green without any real LLM.
 """
@@ -54,26 +57,19 @@ def _make_settings(**overrides: object) -> Settings:
                        if k.startswith("AGENTOPS_")})
 
 
-def _make_genai_mock(text: str = "0.85") -> MagicMock:
-    """Build a mock that mimics google.generativeai.GenerativeModel."""
+def _make_genai_client_mock(text: str = "0.85") -> MagicMock:
+    """Build a mock that mimics the unified google-genai Client interface.
+
+    Simulates: client.models.generate_content(model=..., contents=...) -> response
+    where response.text == text.
+    """
     mock_response = MagicMock()
     mock_response.text = text
-    mock_model = MagicMock()
-    mock_model.generate_content.return_value = mock_response
+    mock_client = MagicMock()
+    mock_client.models.generate_content.return_value = mock_response
     mock_genai = MagicMock()
-    mock_genai.GenerativeModel.return_value = mock_model
+    mock_genai.Client.return_value = mock_client
     return mock_genai
-
-
-def _make_vertexai_mock(text: str = "0.85") -> tuple[MagicMock, MagicMock]:
-    """Return (mock_vertexai_module, mock_GenerativeModel_class)."""
-    mock_response = MagicMock()
-    mock_response.text = text
-    mock_model_instance = MagicMock()
-    mock_model_instance.generate_content.return_value = mock_response
-    mock_gm_class = MagicMock(return_value=mock_model_instance)
-    mock_vertexai = MagicMock()
-    return mock_vertexai, mock_gm_class
 
 
 # ── Settings defaults ─────────────────────────────────────────────────────────
@@ -138,37 +134,30 @@ class TestGenerateTextRouting:
 
 class TestGenerateTextErrors:
     def test_aistudio_import_error_returns_empty(self) -> None:
-        """If google-generativeai is not installed, return ''."""
-        with patch.dict("sys.modules", {"google.generativeai": None}):
+        """If google-genai is not installed, _generate_aistudio returns ''."""
+        with patch.dict("sys.modules", {"google.genai": None}):
             result = _generate_aistudio("prompt", "gemini-2.0-flash")
         assert result == ""
 
     def test_vertex_import_error_returns_empty(self) -> None:
-        """If google-cloud-aiplatform is not installed, return ''."""
-        with patch.dict("sys.modules", {"vertexai": None, "vertexai.generative_models": None}):
+        """If google-genai is not installed, _generate_vertex returns ''."""
+        with patch.dict("sys.modules", {"google.genai": None}):
             result = _generate_vertex("prompt", "gemini-2.0-flash")
         assert result == ""
 
     def test_aistudio_api_error_returns_empty(self) -> None:
         """API errors from AI Studio are swallowed; return ''."""
-        mock_genai = MagicMock()
-        mock_genai.GenerativeModel.side_effect = RuntimeError("API unavailable")
-        with patch.dict("sys.modules", {"google.generativeai": mock_genai}):
+        mock_genai = _make_genai_client_mock()
+        mock_genai.Client.side_effect = RuntimeError("API unavailable")
+        with patch.dict("sys.modules", {"google.genai": mock_genai}):
             result = _generate_aistudio("prompt", "gemini-2.0-flash")
         assert result == ""
 
     def test_vertex_api_error_returns_empty(self) -> None:
-        """API errors from Vertex AI are swallowed; return ''."""
-        mock_vertexai = MagicMock()
-        mock_vertexai.init.side_effect = RuntimeError("ADC not configured")
-        mock_gm_class = MagicMock()
-        with patch.dict(
-            "sys.modules",
-            {
-                "vertexai": mock_vertexai,
-                "vertexai.generative_models": MagicMock(GenerativeModel=mock_gm_class),
-            },
-        ):
+        """API errors from the Gemini Enterprise Agent Platform are swallowed; return ''."""
+        mock_genai = _make_genai_client_mock()
+        mock_genai.Client.side_effect = RuntimeError("ADC not configured")
+        with patch.dict("sys.modules", {"google.genai": mock_genai}):
             result = _generate_vertex("prompt", "gemini-2.0-flash")
         assert result == ""
 
