@@ -85,7 +85,8 @@ class TestSettingsDefaults:
         assert settings.gemini_backend == "vertex"
 
     def test_google_cloud_location_default(self) -> None:
-        settings = Settings(gemini_backend="aistudio", judge_model="gemini-2.0-flash")
+        # _env_file=None ignores any developer-local .env so we test the field default.
+        settings = Settings(_env_file=None)
         assert settings.google_cloud_location == "asia-northeast1"
 
     def test_google_api_key_default_empty(self) -> None:
