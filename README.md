@@ -12,6 +12,26 @@ AI agents change behavior when you touch a prompt, a rule, or a model version �
 
 The core differentiator is an **autonomous meta-agent** (built with Google ADK + Gemini) that reads evaluation results and decides — without human input — whether to advance the canary, hold and wait, or roll back and file an improvement PR.
 
+## Relationship to managed agents
+
+This platform **operates** agents; it does not *use* them. A *managed agent* does its own real-world task (e.g. producing content); this platform keeps that agent's behavior correct by putting each version under evaluation, canary, and automatic rollback. The platform never consumes the agent's output — it governs the agent.
+
+```
+   agentops-platform   (control plane + autonomous meta-agent)
+        │  ▲
+   (1)  │  │  (2)
+ operate │  │ report
+  / eval ▼  │
+   a managed agent     (does the real task; e.g. marketing-shorts-agent)
+        │
+        ▼  the agent's real output goes to its own end users — the platform never sees it
+```
+
+- **(1) platform → agent**: evaluate each version, roll out by canary, auto-rollback on regression.
+- **(2) agent → platform**: register its versions and push outcome metrics (e.g. audience retention) back.
+
+[marketing-shorts-agent](https://github.com/takumimorimoto-yakumo/marketing-shorts-agent) is the reference managed agent used to demonstrate this loop end to end.
+
 ## What it does (implemented)
 
 | Capability | Status | How |
