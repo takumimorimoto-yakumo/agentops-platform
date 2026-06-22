@@ -4,10 +4,12 @@ Evaluation judge interface and implementations.
 JudgeProtocol defines the interface that all judge implementations must satisfy.
 StubJudge is the deterministic implementation used for local dev and tests.
 
-GeminiJudge uses the Gemini API for real LLM-as-judge scoring.  The backend
-(AI Studio or Vertex AI) is controlled by AGENTOPS_GEMINI_BACKEND:
+GeminiJudge uses the Gemini API for real LLM-as-judge scoring via the unified
+google-genai SDK (``from google import genai``).  The backend is controlled by
+AGENTOPS_GEMINI_BACKEND:
   - "aistudio" (default) — requires GOOGLE_API_KEY
   - "vertex"             — uses ADC + GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION
+                           (Gemini Enterprise Agent Platform, formerly Vertex AI)
 
 Switch the judge implementation via AGENTOPS_JUDGE_BACKEND:
   - "stub"   (default) → StubJudge (no LLM call, CI/dev safe)
@@ -120,9 +122,11 @@ class StubJudge:
 class GeminiJudge:
     """LLM-as-judge using the Gemini API for drift scoring.
 
-    Supports two Gemini backends via gemini_client.generate_text():
-      - "aistudio" (default): google-generativeai SDK, GOOGLE_API_KEY auth.
-      - "vertex": Vertex AI SDK (google-cloud-aiplatform), ADC auth.
+    Supports two Gemini backends via gemini_client.generate_text(), both using
+    the unified google-genai SDK:
+      - "aistudio" (default): genai.Client(api_key=...), GOOGLE_API_KEY auth.
+      - "vertex": genai.Client(vertexai=True, ...), ADC auth.
+                  (Gemini Enterprise Agent Platform, formerly Vertex AI)
 
     The backend is read from AGENTOPS_GEMINI_BACKEND (via Settings).
     The model ID is read from the platform config (never hard-coded).
@@ -239,8 +243,9 @@ Respond with ONLY a decimal number between 0.0 and 1.0 on a single line.
 def get_judge(backend: str = "stub") -> JudgeProtocol:
     """Factory that returns the configured judge implementation.
 
-    The Gemini backend (AI Studio vs Vertex AI) is controlled separately
-    by AGENTOPS_GEMINI_BACKEND and is read from Settings inside GeminiJudge.
+    The Gemini backend (AI Studio vs Gemini Enterprise Agent Platform) is
+    controlled separately by AGENTOPS_GEMINI_BACKEND and is read from Settings
+    inside GeminiJudge.
 
     Args:
         backend: "stub" for the deterministic stub, "gemini" for the real

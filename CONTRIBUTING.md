@@ -61,7 +61,7 @@ python -m agentops_platform.examples.autonomy_demo --with-server
 - **Style**: enforced by [Ruff](https://github.com/astral-sh/ruff) (`line-length = 100`, `target-version = py311`).
 - **Types**: all public functions and methods must be type-annotated. Mypy strict mode is configured.
 - **No hard-coding**: thresholds, model IDs, canary steps, and all domain constants must be imported from `config/defaults.py`. Never inline magic numbers.
-- **No new LLM dependencies**: the only permitted LLM provider is Google Gemini via `google-generativeai`. Do not add OpenAI, Anthropic, Cohere, Ollama, or any other LLM dependency.
+- **No new LLM dependencies**: the only permitted LLM provider is Google Gemini via `google-genai` (the unified SDK covering both AI Studio and the Gemini Enterprise Agent Platform). Do not add OpenAI, Anthropic, Cohere, Ollama, or any other LLM dependency.
 
 ### Code quality checks
 
