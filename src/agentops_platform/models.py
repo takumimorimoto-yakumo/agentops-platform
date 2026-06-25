@@ -250,6 +250,21 @@ class DecisionRecord(BaseModel):
     action: Literal["advance", "hold", "rollback"]
     rationale: str = Field(description="Human-readable explanation of the decision")
     signal: GrayZoneSignal
+    judgedBy: Literal[
+        "safety_floor", "gemini", "gemini_failed", "heuristic", "auto_advance",
+        "missing_baseline",
+    ] = Field(
+        default="heuristic",
+        description=(
+            "Provenance of the decision. 'gemini' = the LLM judged the gray zone; "
+            "'gemini_failed' = the LLM was consulted but the call failed and the system "
+            "degraded to a deterministic safe-default (NOT an AI decision); "
+            "'heuristic' = deterministic gray-zone rule (stub/offline); "
+            "'safety_floor' = Layer-1 hard-threshold rule; "
+            "'auto_advance' = no soft warnings, advanced by rule; "
+            "'missing_baseline' = no stable baseline to compare against, held for safety."
+        ),
+    )
     prDraftId: str | None = Field(
         default=None,
         description="ID of the associated PRDraft when action==rollback",

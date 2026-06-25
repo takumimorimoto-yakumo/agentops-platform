@@ -39,11 +39,13 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Literal
 
 from config.defaults import (
+    AGGRESSIVE_WARN_MULTIPLIER,
     META_DECISION_ADVANCE,
     META_DECISION_HOLD,
     META_DECISION_ROLLBACK,
     PR_MODE_DRYRUN,
     PR_MODE_GH,
+    SEVERE_WARN_MULTIPLIER,
     Settings,
     get_settings,
 )
@@ -200,7 +202,7 @@ def _call_gemini_judge(
     prompt: str,
     model_id: str,
     settings: "Settings | None" = None,
-) -> tuple[Literal["advance", "hold", "rollback"], str]:
+) -> tuple[Literal["advance", "hold", "rollback"], str, bool]:
     """Call the Gemini API and parse the action/rationale JSON.
 
     Routes to AI Studio or Vertex AI based on settings.gemini_backend.
@@ -236,10 +238,15 @@ def _call_gemini_judge(
         if action not in ("advance", "hold", "rollback"):
             action = "hold"
         rationale = parsed.get("rationale", "No rationale provided.")
-        return action, rationale  # type: ignore[return-value]
+        return action, rationale, True  # type: ignore[return-value]
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Gemini gray-zone judgment failed (%s): %s", model_id, exc)
-        return "hold", f"Gemini call failed; defaulting to hold. Error: {exc}"
+        logger.error(
+            "Gemini gray-zone judgment FAILED (%s): %s — DEGRADING to deterministic "
+            "safe-default 'hold'. This decision was NOT made by the LLM.",
+            model_id,
+            exc,
+        )
+        return "hold", f"Gemini call failed; defaulting to hold. Error: {exc}", False
 
 
 def _decide_gray_zone(
@@ -247,7 +254,7 @@ def _decide_gray_zone(
     deployment: Deployment,
     settings: Settings,
     use_gemini: bool,
-) -> tuple[Literal["advance", "hold", "rollback"], str]:
+) -> tuple[Literal["advance", "hold", "rollback"], str, str]:
     """Determine the action for a gray-zone situation.
 
     When use_gemini is True and the judge_backend is configured for Gemini,
@@ -284,13 +291,16 @@ def _decide_gray_zone(
             traffic_pct=deployment.currentTrafficPercent or 0,
             steps_remaining=steps_remaining,
         )
-        return _call_gemini_judge(prompt, model_id=settings.judge_model, settings=settings)
+        action, rationale, ok = _call_gemini_judge(
+            prompt, model_id=settings.judge_model, settings=settings
+        )
+        return action, rationale, ("gemini" if ok else "gemini_failed")
 
     # Deterministic fallback heuristics (used in tests and when judge_backend=stub)
-    aggressive_warn_drift = settings.meta_agent_drift_warn * 1.5
-    aggressive_warn_traj = settings.meta_agent_trajectory_warn * 1.5
-    aggressive_warn_cost = settings.meta_agent_cost_warn * 1.5
-    aggressive_warn_latency = settings.meta_agent_latency_warn_ms * 1.5
+    aggressive_warn_drift = settings.meta_agent_drift_warn * AGGRESSIVE_WARN_MULTIPLIER
+    aggressive_warn_traj = settings.meta_agent_trajectory_warn * AGGRESSIVE_WARN_MULTIPLIER
+    aggressive_warn_cost = settings.meta_agent_cost_warn * AGGRESSIVE_WARN_MULTIPLIER
+    aggressive_warn_latency = settings.meta_agent_latency_warn_ms * AGGRESSIVE_WARN_MULTIPLIER
 
     concerning_count = 0
     reasons: list[str] = []
@@ -314,12 +324,32 @@ def _decide_gray_zone(
             f"latency {signal.canary_latency_ms:.0f}ms exceeds {aggressive_warn_latency:.0f}ms"
         )
 
+    # A single axis degrading severely (just under the hard floor) is enough to
+    # roll back on its own — a deep single-axis regression should not be held
+    # merely because the other axes look fine.
+    severe: list[str] = []
+    if signal.drift_drop > settings.meta_agent_drift_warn * SEVERE_WARN_MULTIPLIER:
+        severe.append(f"drift drop {signal.drift_drop:.3f}")
+    if signal.trajectory_drop > settings.meta_agent_trajectory_warn * SEVERE_WARN_MULTIPLIER:
+        severe.append(f"trajectory drop {signal.trajectory_drop:.3f}")
+    if signal.cost_increase_ratio > settings.meta_agent_cost_warn * SEVERE_WARN_MULTIPLIER:
+        severe.append(f"cost increase {signal.cost_increase_ratio:.1%}")
+    if signal.canary_latency_ms > settings.meta_agent_latency_warn_ms * SEVERE_WARN_MULTIPLIER:
+        severe.append(f"latency {signal.canary_latency_ms:.0f}ms")
+
+    if severe:
+        rationale = (
+            "Deterministic fallback: single-axis severe degradation near the safety "
+            "floor: " + "; ".join(severe)
+        )
+        return META_DECISION_ROLLBACK, rationale, "heuristic"  # type: ignore[return-value]
+
     if concerning_count >= 2:
         rationale = (
             "Deterministic fallback: multiple axes exceeded aggressive warning thresholds: "
             + "; ".join(reasons)
         )
-        return META_DECISION_ROLLBACK, rationale  # type: ignore[return-value]
+        return META_DECISION_ROLLBACK, rationale, "heuristic"  # type: ignore[return-value]
 
     if reasons:
         rationale = (
@@ -327,13 +357,13 @@ def _decide_gray_zone(
             + "; ".join(reasons)
             + ". Holding for next evaluation window."
         )
-        return META_DECISION_HOLD, rationale  # type: ignore[return-value]
+        return META_DECISION_HOLD, rationale, "heuristic"  # type: ignore[return-value]
 
     # All in gray zone but still acceptable — advance
     rationale = (
         "Soft warning thresholds exceeded but trend appears acceptable. Advancing canary."
     )
-    return META_DECISION_ADVANCE, rationale  # type: ignore[return-value]
+    return META_DECISION_ADVANCE, rationale, "heuristic"  # type: ignore[return-value]
 
 
 # ── PR draft generation ───────────────────────────────────────────────────────
@@ -555,6 +585,7 @@ class MetaAgentCycle:
                 action=META_DECISION_ROLLBACK,
                 rationale=rationale,
                 signal=GrayZoneSignal(),
+                judged_by="safety_floor",
             )
             # Also produce a PR draft for safety-floor rollbacks and link it
             pr = self._maybe_create_pr(deployment, GrayZoneSignal(), rationale, record.decisionId)
@@ -566,12 +597,36 @@ class MetaAgentCycle:
                     action=record.action,
                     rationale=record.rationale,
                     signal=record.signal,
+                    judgedBy=record.judgedBy,
                     prDraftId=pr.prDraftId,
                     decidedAt=record.decidedAt,
                 )
                 _decision_records[record.decisionId] = linked
                 return linked
             return record
+
+        # ── Missing-baseline guard ─────────────────────────────────────────
+        # If the canary has scores but there is NO stable baseline to compare
+        # against, neither the safety floor nor the gray-zone signal can judge
+        # safely (every drop computes to ~0, so the canary would silently
+        # auto-advance). Refuse to advance: hold and surface the condition.
+        if canary_scores and not stable_scores:
+            logger.warning(
+                "Meta-agent: deployment %s has canary scores but NO stable baseline; "
+                "cannot judge safely. Holding instead of advancing.",
+                deployment_id,
+            )
+            return self._make_record(
+                deployment_id=deployment_id,
+                evaluation_id=evaluation_id,
+                action=META_DECISION_HOLD,
+                rationale=(
+                    "No stable baseline evaluation available to compare the canary "
+                    "against; holding rather than advancing without a safety reference."
+                ),
+                signal=GrayZoneSignal(),
+                judged_by="missing_baseline",
+            )
 
         # ── Layer 2: gray-zone judgment ───────────────────────────────────
         outcome_metrics = self._collect_outcome_metrics(deployment.versionId)
@@ -580,9 +635,10 @@ class MetaAgentCycle:
         if not _is_in_gray_zone(signal, self._settings):
             # All clear — advance to next canary step if available
             action, rationale = self._compute_advance_or_complete(deployment)
+            judged_by = "auto_advance"
         else:
             # Gray zone — consult Gemini (or deterministic fallback)
-            action, rationale = _decide_gray_zone(
+            action, rationale, judged_by = _decide_gray_zone(
                 signal, deployment, self._settings, self._use_gemini
             )
 
@@ -596,6 +652,7 @@ class MetaAgentCycle:
             action=action,  # type: ignore[arg-type]
             rationale=rationale,
             signal=signal,
+            judged_by=judged_by,
         )
 
         if action == META_DECISION_ROLLBACK:
@@ -608,6 +665,7 @@ class MetaAgentCycle:
                     action=record.action,
                     rationale=record.rationale,
                     signal=record.signal,
+                    judgedBy=record.judgedBy,
                     prDraftId=pr.prDraftId,
                     decidedAt=record.decidedAt,
                 )
@@ -714,6 +772,7 @@ class MetaAgentCycle:
         action: Literal["advance", "hold", "rollback"],
         rationale: str,
         signal: GrayZoneSignal,
+        judged_by: str = "heuristic",
     ) -> DecisionRecord:
         record = DecisionRecord(
             decisionId=_new_id(),
@@ -722,6 +781,7 @@ class MetaAgentCycle:
             action=action,
             rationale=rationale,
             signal=signal,
+            judgedBy=judged_by,  # type: ignore[arg-type]
             decidedAt=_now(),
         )
         _decision_records[record.decisionId] = record

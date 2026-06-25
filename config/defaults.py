@@ -97,6 +97,15 @@ DEFAULT_MAX_TRAJECTORY_DROP: float = 0.10     # 10 % drop in trajectory score
 DEFAULT_MAX_COST_INCREASE_RATIO: float = 0.50  # 50 % cost increase
 DEFAULT_MAX_LATENCY_P95_MS: float = 3000.0    # 3 000 ms absolute p95 ceiling
 
+# Gray-zone heuristic multipliers (applied to the soft-warn thresholds above).
+# Used only by the deterministic fallback path (stub/offline); the Gemini path
+# reasons about the raw signal instead.
+#   AGGRESSIVE: an axis past warn * this is "concerning"; >=2 concerning → rollback.
+#   SEVERE:     a single axis past warn * this is deep enough (just under the hard
+#               floor) to roll back on its own, even if no other axis is concerning.
+AGGRESSIVE_WARN_MULTIPLIER: float = 1.5
+SEVERE_WARN_MULTIPLIER: float = 1.8
+
 # ── Evaluation axis enum ──────────────────────────────────────────────────────
 # Single source of truth for axis names used across the codebase.
 

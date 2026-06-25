@@ -20,6 +20,7 @@ Immutable terminal states: promoted, rolled_back, failed.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
@@ -29,12 +30,13 @@ from config.defaults import (
     DEFAULT_MAX_DRIFT_DROP,
     DEFAULT_MAX_LATENCY_P95_MS,
     DEFAULT_MAX_TRAJECTORY_DROP,
-    DEFAULT_ROLLBACK_WINDOW_MINUTES,
     EVENT_DEPLOYMENT_PROMOTED,
     EVENT_DEPLOYMENT_ROLLED_BACK,
     EVENT_DEPLOYMENT_STEP_ADVANCED,
 )
 from .models import AxisScore, Deployment, Event, RollbackPolicy
+
+logger = logging.getLogger(__name__)
 
 
 # ── Result types ──────────────────────────────────────────────────────────────
@@ -101,6 +103,15 @@ def evaluate_rollback_policy(
     # Index scores by axis
     canary_by_axis = {s.axis: s.score for s in scores}
     stable_by_axis = {s.axis: s.score for s in stable_scores}
+
+    # Without a stable baseline, drift/trajectory/cost comparisons cannot be
+    # computed and are silently skipped below — surface that explicitly so a
+    # missing baseline never looks like a clean pass.
+    if canary_by_axis and not stable_by_axis:
+        logger.warning(
+            "Rollback policy: canary has scores but no stable baseline; "
+            "drift/trajectory/cost checks skipped (absolute latency floor still applies)."
+        )
 
     # ── drift check ───────────────────────────────────────────────────────
     if "drift" in canary_by_axis and "drift" in stable_by_axis:

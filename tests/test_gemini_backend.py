@@ -274,9 +274,10 @@ class TestMetaAgentBackendIntegration:
         resp = '{"action": "advance", "rationale": "looks good"}'
 
         with patch("agentops_platform.gemini_client.generate_text", return_value=resp) as mock_gen:
-            action, rationale = _call_gemini_judge("test prompt", "gemini-2.0-flash", settings=settings)
+            action, rationale, ok = _call_gemini_judge("test prompt", "gemini-2.0-flash", settings=settings)
 
         assert action == "advance"
+        assert ok is True
         assert "looks good" in rationale
         mock_gen.assert_called_once()
         call_kwargs = mock_gen.call_args[1]
@@ -294,9 +295,10 @@ class TestMetaAgentBackendIntegration:
         resp = '{"action": "hold", "rationale": "uncertain"}'
 
         with patch("agentops_platform.gemini_client.generate_text", return_value=resp) as mock_gen:
-            action, rationale = _call_gemini_judge("test prompt", "gemini-2.0-flash", settings=settings)
+            action, rationale, ok = _call_gemini_judge("test prompt", "gemini-2.0-flash", settings=settings)
 
         assert action == "hold"
+        assert ok is True
         call_kwargs = mock_gen.call_args[1]
         assert call_kwargs.get("backend") == "vertex"
         assert call_kwargs.get("project") == "my-proj"
@@ -308,9 +310,10 @@ class TestMetaAgentBackendIntegration:
 
         settings = _make_settings()
         with patch("agentops_platform.gemini_client.generate_text", return_value=""):
-            action, rationale = _call_gemini_judge("test prompt", "gemini-2.0-flash", settings=settings)
+            action, rationale, ok = _call_gemini_judge("test prompt", "gemini-2.0-flash", settings=settings)
 
         assert action == "hold"
+        assert ok is False
         assert "defaulting to hold" in rationale.lower()
 
     def test_call_gemini_judge_invalid_json_defaults_to_hold(self) -> None:
@@ -319,9 +322,10 @@ class TestMetaAgentBackendIntegration:
 
         settings = _make_settings()
         with patch("agentops_platform.gemini_client.generate_text", return_value="not json at all"):
-            action, rationale = _call_gemini_judge("test prompt", "gemini-2.0-flash", settings=settings)
+            action, rationale, ok = _call_gemini_judge("test prompt", "gemini-2.0-flash", settings=settings)
 
         assert action == "hold"
+        assert ok is False
 
 
 # ── Stub default: existing green remains ─────────────────────────────────────

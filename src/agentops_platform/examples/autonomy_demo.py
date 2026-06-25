@@ -323,7 +323,9 @@ def run_demo(store: Any, settings: Any) -> dict[str, Any]:  # type: ignore[retur
     _human_prompt()
     _info("Running meta-agent...  (Layer 1: safety floor, Layer 2: gray-zone judgment)")
 
-    cycle = MetaAgentCycle(store, settings=settings, use_gemini=False)
+    cycle = MetaAgentCycle(
+        store, settings=settings, use_gemini=(settings.judge_backend == "gemini")
+    )
     decision = cycle.run(
         deployment_id=canary_dep.deploymentId,
         evaluation_id=canary_eval.evaluationId,
@@ -442,24 +444,48 @@ def main() -> None:
         action="store_true",
         help="Start the FastAPI server so /dashboard is live at http://localhost:8080/dashboard",
     )
+    parser.add_argument(
+        "--gemini",
+        action="store_true",
+        help="Use the REAL Gemini backend for the meta-agent's gray-zone judgment "
+        "(inherits AGENTOPS_GEMINI_BACKEND / GOOGLE_* from env or .env). Without this "
+        "flag the demo runs fully offline on the deterministic stub.",
+    )
     args = parser.parse_args()
 
     _banner("AgentOps Platform — Autonomous Canary Management Demo")
-    print("  Self-contained: in-memory store, stub judge, dryrun PR mode.")
-    print("  No network calls. No GitHub access. No human decisions required.")
+    if args.gemini:
+        print("  Mode: REAL GEMINI gray-zone judgment (network calls enabled).")
+        print("  The seeded canary signal is deterministic; the advance/hold/rollback")
+        print("  decision is made by the live LLM (judgedBy=gemini in the audit record).")
+    else:
+        print("  Self-contained: in-memory store, stub judge, dryrun PR mode.")
+        print("  No network calls. No GitHub access. No human decisions required.")
 
     # Build fresh store + settings for the demo
     from agentops_platform.repository import MemoryStore
-    from config.defaults import Settings
+    from config.defaults import Settings, get_settings
 
     store = MemoryStore()
     # Settings field names use the bare name (env_prefix="AGENTOPS_" is stripped).
-    settings = Settings(
-        judge_backend="stub",
-        pr_mode="dryrun",
-        meta_agent_drift_warn=_WARN_DRIFT,
-        meta_agent_trajectory_warn=_WARN_TRAJECTORY,
-    )
+    if args.gemini:
+        # Real Gemini: inherit backend/project/location/api_key from env (.env),
+        # but pin the demo's warn thresholds and dryrun PR mode.
+        settings = get_settings().model_copy(
+            update={
+                "judge_backend": "gemini",
+                "pr_mode": "dryrun",
+                "meta_agent_drift_warn": _WARN_DRIFT,
+                "meta_agent_trajectory_warn": _WARN_TRAJECTORY,
+            }
+        )
+    else:
+        settings = Settings(
+            judge_backend="stub",
+            pr_mode="dryrun",
+            meta_agent_drift_warn=_WARN_DRIFT,
+            meta_agent_trajectory_warn=_WARN_TRAJECTORY,
+        )
 
     server = None
     if args.with_server:
