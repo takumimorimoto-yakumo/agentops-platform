@@ -49,6 +49,32 @@ def health_check() -> JSONResponse:
     return JSONResponse({"status": "ok"})
 
 
+# ── Optional demo seeding ─────────────────────────────────────────────────────
+
+
+@app.on_event("startup")
+def _seed_demo_data() -> None:
+    """Seed one deterministic autonomy scenario so a fresh deployment's
+    read-only dashboard shows a populated 'detect -> rollback -> PR' story.
+
+    Enabled with AGENTOPS_SEED_DEMO=true.  Non-blocking and best-effort: a
+    seeding failure is logged but never prevents the app from serving.
+    """
+    if not settings.seed_demo:
+        return
+    import logging
+
+    from .examples.autonomy_demo import run_demo
+    from .routers.deps import get_store
+
+    log = logging.getLogger(__name__)
+    try:
+        run_demo(get_store(), settings)
+        log.info("Seed demo: autonomy scenario loaded into the dashboard store.")
+    except Exception as exc:  # noqa: BLE001
+        log.error("Seed demo failed (serving with empty store): %s", exc)
+
+
 # ── Local dev entry point ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":

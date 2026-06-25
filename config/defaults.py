@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     # ── Auth ──────────────────────────────────────────────────────────────
     auth_mode: Literal["none", "google-id-token"] = Field(default="none")
 
+    # ── Demo seeding ──────────────────────────────────────────────────────
+    # When true, the app seeds one deterministic autonomy scenario into the
+    # in-memory store at startup so the read-only dashboard shows a populated
+    # "detect -> rollback -> PR" story on a fresh deployment.  Each instance
+    # seeds its own identical copy (consistent across replicas).
+    seed_demo: bool = Field(default=False)
+
     # ── Google Cloud ──────────────────────────────────────────────────────
     google_cloud_project: str = Field(default="")
     google_cloud_region: str = Field(default="asia-northeast1")
