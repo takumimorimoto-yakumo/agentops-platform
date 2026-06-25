@@ -127,6 +127,12 @@ _DASHBOARD_HTML = """\
     }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-d); animation: pulse 2.4s ease-in-out infinite; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+    .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 9999px; overflow: hidden; background: var(--bg-1); }
+    .lang-btn { font-family: var(--mono); font-size: 0.64rem; color: var(--ink-3); background: transparent; border: 0; padding: 5px 11px; cursor: pointer; transition: color .15s, background .15s; }
+    .lang-btn + .lang-btn { border-left: 1px solid var(--line); }
+    .lang-btn:hover { color: var(--ink-1); }
+    .lang-btn.on { color: var(--ink-1); background: var(--blue-d); box-shadow: inset 0 0 0 1px rgba(79,140,255,0.3); }
+    .lang-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 
     /* ── Layout ── */
     .wrap { max-width: var(--maxw); margin: 0 auto; padding: var(--sp-5); }
@@ -243,10 +249,14 @@ _DASHBOARD_HTML = """\
       </span>
       <div>
         <div class="brand-name">AgentOps Platform</div>
-        <div class="brand-sub">Autonomous Canary Control</div>
+        <div class="brand-sub" data-i18n="sub">Autonomous Canary Control</div>
       </div>
     </div>
     <div class="hdr-right">
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" class="lang-btn" data-lang="en">EN</button>
+        <button type="button" class="lang-btn" data-lang="ja">日本語</button>
+      </div>
       <span class="live"><span class="dot" id="dot"></span><span id="status">connecting…</span></span>
     </div>
   </header>
@@ -256,22 +266,22 @@ _DASHBOARD_HTML = """\
     <!-- KPI strip -->
     <section class="kpis" id="kpis" aria-label="Key metrics">
       <div class="kpi k-blue">
-        <div class="kpi-top"><svg class="kpi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 13l3-3 3 3 4-5"/></svg><span class="kpi-label">Evaluations</span></div>
+        <div class="kpi-top"><svg class="kpi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 13l3-3 3 3 4-5"/></svg><span class="kpi-label" data-i18n="kEval">Evaluations</span></div>
         <div class="kpi-val" id="k-evals">—</div>
         <div class="kpi-hint" id="k-evals-h">&nbsp;</div>
       </div>
       <div class="kpi k-green">
-        <div class="kpi-top"><svg class="kpi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18"/></svg><span class="kpi-label">Active canaries</span></div>
+        <div class="kpi-top"><svg class="kpi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18"/></svg><span class="kpi-label" data-i18n="kCanary">Active canaries</span></div>
         <div class="kpi-val" id="k-canary">—</div>
         <div class="kpi-hint" id="k-canary-h">&nbsp;</div>
       </div>
       <div class="kpi k-red">
-        <div class="kpi-top"><svg class="kpi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="kpi-label">Auto rollbacks</span></div>
+        <div class="kpi-top"><svg class="kpi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="kpi-label" data-i18n="kRb">Auto rollbacks</span></div>
         <div class="kpi-val" id="k-rb">—</div>
         <div class="kpi-hint" id="k-rb-h">&nbsp;</div>
       </div>
       <div class="kpi k-violet">
-        <div class="kpi-top"><svg class="kpi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="14" height="12" rx="2"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/><path d="M9 13h0M15 13h0"/></svg><span class="kpi-label">LLM-judged</span></div>
+        <div class="kpi-top"><svg class="kpi-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="14" height="12" rx="2"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/><path d="M9 13h0M15 13h0"/></svg><span class="kpi-label" data-i18n="kLlm">LLM-judged</span></div>
         <div class="kpi-val" id="k-llm">—</div>
         <div class="kpi-hint" id="k-llm-h">&nbsp;</div>
       </div>
@@ -282,7 +292,7 @@ _DASHBOARD_HTML = """\
       <div class="panel">
         <div class="p-head">
           <svg class="p-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M19 9l-5 5-3-3-4 4"/></svg>
-          <span class="p-title">Evaluation Score Timeline</span>
+          <span class="p-title" data-i18n="pEval">Evaluation Score Timeline</span>
           <span class="p-count" id="c-eval">—</span>
         </div>
         <div class="p-body"><div id="chart-area"></div></div>
@@ -292,7 +302,7 @@ _DASHBOARD_HTML = """\
       <div class="panel">
         <div class="p-head">
           <svg class="p-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>
-          <span class="p-title">Deployment Status</span>
+          <span class="p-title" data-i18n="pDep">Deployment Status</span>
           <span class="p-count" id="c-dep">—</span>
         </div>
         <div class="p-body"><div id="dep-area"></div></div>
@@ -302,7 +312,7 @@ _DASHBOARD_HTML = """\
       <div class="panel wide">
         <div class="p-head">
           <svg class="p-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/><path d="M16 3l5 5"/></svg>
-          <span class="p-title">Meta-agent Decisions</span>
+          <span class="p-title" data-i18n="pDec">Meta-agent Decisions</span>
           <span class="p-count" id="c-dec">—</span>
         </div>
         <div class="p-body"><div id="dec-area"></div></div>
@@ -316,8 +326,51 @@ _DASHBOARD_HTML = """\
 
     var DRIFT_TH = 0.75, TRAJ_TH = 0.70;
 
+    // ── i18n ──
+    var L = {
+      en: {
+        sub:'Autonomous Canary Control',
+        kEval:'Evaluations', kCanary:'Active canaries', kRb:'Auto rollbacks', kLlm:'LLM-judged',
+        pEval:'Evaluation Score Timeline', pDep:'Deployment Status', pDec:'Meta-agent Decisions',
+        hScored:'scored across axes', hAwait:'awaiting runs', hInprog:'in progress', hNoCanary:'none in progress', hNoHuman:'no human in the path', hNoRb:'none yet',
+        empEvalT:'No evaluations yet', empEvalS:'scores will plot here once runs land',
+        empDepT:'No deployments yet', empDepS:'canary deployments will appear here',
+        empDecT:'No decisions yet', empDecS:'the meta-agent has not acted',
+        lgDrift:'Drift', lgTraj:'Trajectory', lgTh:'Threshold', lgBelow:'Below threshold',
+        tblCap:'Recent evaluations', thTime:'Time', thDrift:'Drift', thTraj:'Traj', thCost:'Cost', thLat:'Latency', thState:'State',
+        jb_gemini:'Judged by Gemini', jb_gemini_failed:'Gemini failed \\u2192 fallback', jb_heuristic:'Rule-based', jb_safety_floor:'Safety floor', jb_auto_advance:'Auto-advance', jb_missing_baseline:'No baseline \\u2192 hold',
+        chDrift:'drift \\u0394', chTraj:'traj \\u0394', chCost:'cost', chP95:'p95', pr:'improvement PR', ver:'version',
+        updated:'updated', poll:'10s', error:'error: ', connecting:'connecting\\u2026',
+        bd_rollback:'rollback', bd_advance:'advance', bd_hold:'hold', bd_canary:'canary', bd_pending:'pending', bd_promoted:'promoted', bd_rolled_back:'rolled back', bd_failed:'failed', bd_ok:'ok', bd_unknown:'unknown'
+      },
+      ja: {
+        sub:'自律カナリア制御',
+        kEval:'評価', kCanary:'稼働カナリア', kRb:'自動ロールバック', kLlm:'LLM 判断',
+        pEval:'評価スコア タイムライン', pDep:'デプロイ状況', pDec:'メタエージェントの判断',
+        hScored:'各軸で採点', hAwait:'実行待ち', hInprog:'進行中', hNoCanary:'進行中なし', hNoHuman:'人手を介さず', hNoRb:'まだ無し',
+        empEvalT:'評価はまだありません', empEvalS:'実行されるとここにプロットされます',
+        empDepT:'デプロイはまだありません', empDepS:'カナリアデプロイがここに出ます',
+        empDecT:'判断はまだありません', empDecS:'メタエージェントはまだ動いていません',
+        lgDrift:'ドリフト', lgTraj:'トラジェクトリ', lgTh:'しきい値', lgBelow:'しきい値割れ',
+        tblCap:'直近の評価', thTime:'時刻', thDrift:'ドリフト', thTraj:'軌跡', thCost:'コスト', thLat:'レイテンシ', thState:'状態',
+        jb_gemini:'Gemini が判断', jb_gemini_failed:'Gemini 失敗 \\u2192 フォールバック', jb_heuristic:'ルールベース', jb_safety_floor:'安全床', jb_auto_advance:'自動前進', jb_missing_baseline:'基準なし \\u2192 保留',
+        chDrift:'ドリフト\\u0394', chTraj:'軌跡\\u0394', chCost:'コスト', chP95:'p95', pr:'改善PR', ver:'バージョン',
+        updated:'更新', poll:'10秒', error:'エラー: ', connecting:'接続中\\u2026',
+        bd_rollback:'ロールバック', bd_advance:'前進', bd_hold:'保留', bd_canary:'カナリア', bd_pending:'保留中', bd_promoted:'昇格', bd_rolled_back:'ロールバック済', bd_failed:'失敗', bd_ok:'ok', bd_unknown:'不明'
+      }
+    };
+    var lang = localStorage.getItem('aolang') || (((navigator.language||'').slice(0,2)==='ja') ? 'ja' : 'en');
+    function t(k){ var v=(L[lang]||{})[k]; if(v===undefined) v=L.en[k]; return v===undefined ? k : v; }
+    function loc(){ return lang==='ja' ? 'ja-JP' : 'en-GB'; }
+    function countLabel(n, kind){
+      if (lang==='ja') return n + ' 件';
+      if (kind==='dep') return n + ' total';
+      if (kind==='dec') return n + ' decision' + (n!==1?'s':'');
+      return n + ' eval' + (n!==1?'s':'');
+    }
+
     function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-    function badge(cls, text) { return '<span class="badge b-' + cls + '">' + esc(text) + '</span>'; }
+    function badge(cls, key) { return '<span class="badge b-' + cls + '">' + esc(t('bd_'+key) || key) + '</span>'; }
     function fmtTime(iso) {
       if (!iso) return '—';
       var d = new Date(iso);
@@ -337,16 +390,9 @@ _DASHBOARD_HTML = """\
     var GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>';
     var SHIELD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 8 8 11 4.5-3 8-6 8-11V5l-8-3Z"/></svg>';
     function judgedBy(jb) {
-      var map = {
-        gemini:           ['Judged by Gemini', BRAIN],
-        gemini_failed:    ['Gemini failed → fallback', BRAIN],
-        heuristic:        ['Rule-based', GEAR],
-        safety_floor:     ['Safety floor', SHIELD],
-        auto_advance:     ['Auto-advance', GEAR],
-        missing_baseline: ['No baseline → hold', SHIELD]
-      };
-      var m = map[jb] || ['Rule-based', GEAR];
-      return '<span class="jb jb-' + esc(jb || 'heuristic') + '" title="Decision provenance: ' + esc(jb || 'heuristic') + '">' + m[1] + esc(m[0]) + '</span>';
+      var icon = { gemini: BRAIN, gemini_failed: BRAIN, heuristic: GEAR, safety_floor: SHIELD, auto_advance: GEAR, missing_baseline: SHIELD };
+      var key = jb || 'heuristic';
+      return '<span class="jb jb-' + esc(key) + '" title="' + esc(key) + '">' + (icon[key] || GEAR) + esc(t('jb_'+key) || key) + '</span>';
     }
 
     // ── KPIs ──
@@ -357,17 +403,19 @@ _DASHBOARD_HTML = """\
       var llm = decs.filter(function(x){ return x.judgedBy==='gemini'; }).length;
       function set(id, v) { document.getElementById(id).textContent = v; }
       set('k-evals', evals.length); set('k-canary', active); set('k-rb', rb); set('k-llm', llm);
-      document.getElementById('k-evals-h').textContent = evals.length ? 'scored across axes' : 'awaiting runs';
-      document.getElementById('k-canary-h').textContent = active ? 'in progress' : 'none in progress';
-      document.getElementById('k-rb-h').textContent = rb ? 'no human in the path' : 'none yet';
-      document.getElementById('k-llm-h').textContent = (llm ? llm + ' of ' : '') + decs.length + ' decisions by LLM';
+      document.getElementById('k-evals-h').textContent = evals.length ? t('hScored') : t('hAwait');
+      document.getElementById('k-canary-h').textContent = active ? t('hInprog') : t('hNoCanary');
+      document.getElementById('k-rb-h').textContent = rb ? t('hNoHuman') : t('hNoRb');
+      document.getElementById('k-llm-h').textContent = (lang==='ja')
+        ? (decs.length + ' 件中 ' + llm + ' 件を LLM が判断')
+        : ((llm ? llm + ' of ' : '') + decs.length + ' decisions by LLM');
     }
 
     // ── Chart ──
     function buildChart(evals) {
       var area = document.getElementById('chart-area');
-      document.getElementById('c-eval').textContent = (evals.length) + ' eval' + (evals.length!==1?'s':'');
-      if (!evals.length) { area.innerHTML = emptyState('No evaluations yet', 'scores will plot here once runs land'); return; }
+      document.getElementById('c-eval').textContent = countLabel(evals.length, 'eval');
+      if (!evals.length) { area.innerHTML = emptyState(t('empEvalT'), t('empEvalS')); return; }
 
       var items = evals.slice().reverse();           // oldest-first
       var n = Math.min(items.length, 30);
@@ -417,16 +465,16 @@ _DASHBOARD_HTML = """\
       s += '</svg>';
 
       s += '<div class="legend">' +
-        '<span class="lg" style="color:#4f8cff"><span class="lg-line"></span>Drift</span>' +
-        '<span class="lg" style="color:#2dd4a7"><span class="lg-line dash"></span>Trajectory</span>' +
-        '<span class="lg" style="color:#5c6b82"><span class="lg-line dash"></span>Threshold</span>' +
-        '<span class="lg" style="color:#ff6b6b"><span class="lg-dot"></span>Below threshold</span>' +
+        '<span class="lg" style="color:#4f8cff"><span class="lg-line"></span>'+esc(t('lgDrift'))+'</span>' +
+        '<span class="lg" style="color:#2dd4a7"><span class="lg-line dash"></span>'+esc(t('lgTraj'))+'</span>' +
+        '<span class="lg" style="color:#5c6b82"><span class="lg-line dash"></span>'+esc(t('lgTh'))+'</span>' +
+        '<span class="lg" style="color:#ff6b6b"><span class="lg-dot"></span>'+esc(t('lgBelow'))+'</span>' +
       '</div>';
 
       // recent table
       var recent = items.slice(-6).reverse();
-      s += '<div class="tbl-wrap"><div class="tbl-cap">Recent evaluations</div><table><thead><tr>';
-      ['Time','Drift','Traj','Cost','Latency','State'].forEach(function(h){ s += '<th>'+h+'</th>'; });
+      s += '<div class="tbl-wrap"><div class="tbl-cap">'+esc(t('tblCap'))+'</div><table><thead><tr>';
+      [t('thTime'),t('thDrift'),t('thTraj'),t('thCost'),t('thLat'),t('thState')].forEach(function(h){ s += '<th>'+esc(h)+'</th>'; });
       s += '</tr></thead><tbody>';
       recent.forEach(function(e){
         var c=scoresOf(e);
@@ -447,8 +495,8 @@ _DASHBOARD_HTML = """\
     // ── Deployments (all states; never empty when data exists) ──
     function renderDeps(deps) {
       var area = document.getElementById('dep-area');
-      document.getElementById('c-dep').textContent = deps.length + ' total';
-      if (!deps.length) { area.innerHTML = emptyState('No deployments yet', 'canary deployments will appear here'); return; }
+      document.getElementById('c-dep').textContent = countLabel(deps.length, 'dep');
+      if (!deps.length) { area.innerHTML = emptyState(t('empDepT'), t('empDepS')); return; }
       var order = { canary:0, pending:1, promoted:2, rolled_back:3, failed:4 };
       var sorted = deps.slice().sort(function(a,b){ return (order[a.state]||9)-(order[b.state]||9); });
       var fillColor = { canary:'#4f8cff', pending:'#9aabc2', promoted:'#2dd4a7', rolled_back:'#ff6b6b', failed:'#a78bfa' };
@@ -458,8 +506,8 @@ _DASHBOARD_HTML = """\
         var col = fillColor[d.state] || '#5c6b82';
         html += '<div class="dep">' +
           '<div class="dep-top"><div><div class="dep-id">'+esc((d.deploymentId||'').substring(0,18))+'</div>' +
-          (d.versionId?'<div class="dep-ver">version '+esc(d.versionId.substring(0,8))+'…</div>':'') + '</div>' +
-          badge(d.state, (d.state||'').replace('_',' ')) + '</div>' +
+          (d.versionId?'<div class="dep-ver">'+esc(t('ver'))+' '+esc(d.versionId.substring(0,8))+'…</div>':'') + '</div>' +
+          badge(d.state, d.state||'unknown') + '</div>' +
           '<div class="track"><div class="bar"><div class="fill" style="width:'+pct+'%;background:linear-gradient(90deg,'+col+',rgba(255,255,255,0.25))"></div></div>' +
           '<span class="pct">'+pct+'%</span></div></div>';
       });
@@ -470,8 +518,8 @@ _DASHBOARD_HTML = """\
     function renderDecs(decs, prs) {
       var area = document.getElementById('dec-area');
       var rb = decs.filter(function(x){ return x.action==='rollback'; }).length;
-      document.getElementById('c-dec').textContent = decs.length + ' decision' + (decs.length!==1?'s':'');
-      if (!decs.length) { area.innerHTML = emptyState('No decisions yet', 'the meta-agent has not acted'); return; }
+      document.getElementById('c-dec').textContent = countLabel(decs.length, 'dec');
+      if (!decs.length) { area.innerHTML = emptyState(t('empDecT'), t('empDecS')); return; }
       var prMap = {}; (prs||[]).forEach(function(p){ prMap[p.prDraftId]=p; });
       var sorted = decs.slice().sort(function(a,b){ return new Date(b.decidedAt||0)-new Date(a.decidedAt||0); });
 
@@ -486,10 +534,10 @@ _DASHBOARD_HTML = """\
 
         // signal chips (only when meaningful)
         var chips = [];
-        if (sig.drift_drop) chips.push('<span class="chip'+(sig.drift_drop>0.05?' warn':'')+'">drift Δ <b>−'+Number(sig.drift_drop).toFixed(3)+'</b></span>');
-        if (sig.trajectory_drop) chips.push('<span class="chip'+(sig.trajectory_drop>0.05?' warn':'')+'">traj Δ <b>−'+Number(sig.trajectory_drop).toFixed(3)+'</b></span>');
-        if (sig.cost_increase_ratio) chips.push('<span class="chip">cost <b>+'+(Number(sig.cost_increase_ratio)*100).toFixed(1)+'%</b></span>');
-        if (sig.canary_latency_ms) chips.push('<span class="chip">p95 <b>'+Number(sig.canary_latency_ms).toFixed(0)+' ms</b></span>');
+        if (sig.drift_drop) chips.push('<span class="chip'+(sig.drift_drop>0.05?' warn':'')+'">'+esc(t('chDrift'))+' <b>−'+Number(sig.drift_drop).toFixed(3)+'</b></span>');
+        if (sig.trajectory_drop) chips.push('<span class="chip'+(sig.trajectory_drop>0.05?' warn':'')+'">'+esc(t('chTraj'))+' <b>−'+Number(sig.trajectory_drop).toFixed(3)+'</b></span>');
+        if (sig.cost_increase_ratio) chips.push('<span class="chip">'+esc(t('chCost'))+' <b>+'+(Number(sig.cost_increase_ratio)*100).toFixed(1)+'%</b></span>');
+        if (sig.canary_latency_ms) chips.push('<span class="chip">'+esc(t('chP95'))+' <b>'+Number(sig.canary_latency_ms).toFixed(0)+' ms</b></span>');
         if (chips.length) html += '<div class="chips">'+chips.join('')+'</div>';
 
         if (d.rationale) html += '<div class="rationale">'+esc(d.rationale)+'</div>';
@@ -497,7 +545,7 @@ _DASHBOARD_HTML = """\
         if (pr) {
           html += '<div class="pr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6"/><path d="M13 6h5a2 2 0 0 1 2 2v7"/><path d="m16 12-3 3 3 3"/></svg>';
           if (pr.prUrl) html += '<a href="'+esc(pr.prUrl)+'" target="_blank" rel="noopener noreferrer">'+esc(pr.title)+'</a>';
-          else html += '<span>improvement PR · <span style="color:var(--ink-2)">'+esc(pr.title)+'</span></span>';
+          else html += '<span>'+esc(t('pr'))+' · <span style="color:var(--ink-2)">'+esc(pr.title)+'</span></span>';
           html += '</div>';
         }
         html += '</div>';
@@ -505,19 +553,48 @@ _DASHBOARD_HTML = """\
       area.innerHTML = html;
     }
 
+    var lastData = null, lastAt = null;
+    function applyStatics() {
+      var els = document.querySelectorAll('[data-i18n]');
+      for (var i=0;i<els.length;i++) els[i].textContent = t(els[i].getAttribute('data-i18n'));
+      var btns = document.querySelectorAll('.lang-btn');
+      for (var j=0;j<btns.length;j++) btns[j].classList.toggle('on', btns[j].getAttribute('data-lang')===lang);
+      document.documentElement.lang = lang;
+    }
+    function setStatus() {
+      var el = document.getElementById('status');
+      if (!lastAt) { el.textContent = t('connecting'); return; }
+      el.textContent = t('updated') + ' ' + lastAt.toLocaleTimeString(loc(),{hour12:false}) + ' \\u00b7 ' + t('poll');
+    }
+    function render(d) {
+      lastData = d;
+      renderKpis(d);
+      buildChart(d.evaluations || []);
+      renderDeps(d.deployments || []);
+      renderDecs(d.decisions || [], d.pr_drafts || []);
+      setStatus();
+    }
+    function setLang(l) {
+      if (l===lang) return;
+      lang = l; localStorage.setItem('aolang', l);
+      applyStatics();
+      if (lastData) render(lastData); else setStatus();
+    }
+    var lbs = document.querySelectorAll('.lang-btn');
+    for (var b=0;b<lbs.length;b++) (function(btn){ btn.addEventListener('click', function(){ setLang(btn.getAttribute('data-lang')); }); })(lbs[b]);
+
     function refresh() {
       fetch('/dashboard/data').then(function(r){ return r.json(); }).then(function(d){
-        renderKpis(d);
-        buildChart(d.evaluations || []);
-        renderDeps(d.deployments || []);
-        renderDecs(d.decisions || [], d.pr_drafts || []);
-        document.getElementById('status').textContent = 'updated ' + new Date().toLocaleTimeString('en-GB',{hour12:false}) + ' · 10s';
+        lastAt = new Date();
+        render(d);
         document.getElementById('dot').style.background = '#2dd4a7';
       }).catch(function(err){
-        document.getElementById('status').textContent = 'error: ' + err;
+        document.getElementById('status').textContent = t('error') + err;
         document.getElementById('dot').style.background = '#ff6b6b';
       });
     }
+    applyStatics();
+    setStatus();
     refresh();
     setInterval(refresh, 10000);
   })();
