@@ -8,7 +8,7 @@ All long-running operations return 202 + resource id for polling.
 from __future__ import annotations
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from config.defaults import get_settings
 from .dashboard import router as dashboard_router
@@ -41,6 +41,12 @@ app.include_router(dashboard_router)  # no prefix; served at /dashboard
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
+
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    """Redirect the bare URL to the read-only monitoring dashboard."""
+    return RedirectResponse(url="/dashboard")
 
 
 @app.get("/healthz", include_in_schema=False)
