@@ -11,16 +11,10 @@ COPY pyproject.toml ./
 COPY src/ ./src/
 COPY config/ ./config/
 
-# Install runtime dependencies only (no dev extras)
-RUN pip install --no-cache-dir ".[" 2>/dev/null || pip install --no-cache-dir \
-    fastapi \
-    "uvicorn[standard]" \
-    pydantic \
-    pydantic-settings \
-    python-dotenv
-
-# Install the package itself in editable mode
-RUN pip install --no-cache-dir -e .
+# Install the package WITH the Gemini extra so google-genai is present for the
+# vertex/aistudio judge backends. (A previous broken extras spec installed only
+# the base deps, which silently disabled the live LLM and degraded to fallback.)
+RUN pip install --no-cache-dir ".[gemini]"
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
