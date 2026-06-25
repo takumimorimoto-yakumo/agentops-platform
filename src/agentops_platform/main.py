@@ -62,6 +62,7 @@ def _seed_demo_data() -> None:
     """
     if not settings.seed_demo:
         return
+    import concurrent.futures as cf
     import logging
 
     from .examples.autonomy_demo import run_demo
@@ -69,10 +70,13 @@ def _seed_demo_data() -> None:
 
     log = logging.getLogger(__name__)
     try:
-        run_demo(get_store(), settings)
+        # Hard timeout so a slow/hung judge call (e.g. a live Gemini backend)
+        # can never prevent the service from becoming ready and serving.
+        with cf.ThreadPoolExecutor(max_workers=1) as ex:
+            ex.submit(run_demo, get_store(), settings).result(timeout=45)
         log.info("Seed demo: autonomy scenario loaded into the dashboard store.")
-    except Exception as exc:  # noqa: BLE001
-        log.error("Seed demo failed (serving with empty store): %s", exc)
+    except Exception as exc:  # noqa: BLE001  (includes TimeoutError)
+        log.error("Seed demo skipped (non-fatal, serving anyway): %s", exc)
 
 
 # ── Local dev entry point ─────────────────────────────────────────────────────
