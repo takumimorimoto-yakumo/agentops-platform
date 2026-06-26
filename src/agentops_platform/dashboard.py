@@ -461,7 +461,7 @@ _DASHBOARD_HTML = """\
       dots(drift, DRIFT_TH, '#4f8cff'); dots(traj, TRAJ_TH, '#2dd4a7');
 
       var step=Math.max(1,Math.floor(n/5));
-      for (var i=0;i<n;i+=step){ var t=fmtHM(items[i].finishedAt||items[i].startedAt); if(t) s += '<text x="'+X(i)+'" y="'+(H-4)+'" font-size="6.5" fill="#5c6b82" text-anchor="middle" font-family="monospace">'+esc(t)+'</text>'; }
+      for (var i=0;i<n;i+=step){ var tick=fmtHM(items[i].finishedAt||items[i].startedAt); if(tick) s += '<text x="'+X(i)+'" y="'+(H-4)+'" font-size="6.5" fill="#5c6b82" text-anchor="middle" font-family="monospace">'+esc(tick)+'</text>'; }
       s += '</svg>';
 
       s += '<div class="legend">' +
