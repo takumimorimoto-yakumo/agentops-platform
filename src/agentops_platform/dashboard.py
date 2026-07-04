@@ -348,6 +348,16 @@ _DASHBOARD_HTML = """\
         <div class="p-body"><div id="dec-area"></div></div>
       </div>
     </div>
+
+    <!-- Managed Agents -->
+    <div class="panel rise" style="animation-delay:.38s; margin-top:var(--sp-3)">
+      <div class="p-head">
+        <svg class="p-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="14" height="12" rx="2"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/><path d="M9 11h.01M15 11h.01"/></svg>
+        <span class="p-title" data-i18n="pAgents">Managed Agents</span>
+        <span class="p-count" id="c-agent">—</span>
+      </div>
+      <div class="p-body"><div id="agent-area"></div></div>
+    </div>
   </div>
 
   <script>
@@ -371,7 +381,9 @@ _DASHBOARD_HTML = """\
         jb_gemini:'Judged by Gemini', jb_gemini_failed:'Gemini failed \\u2192 fallback', jb_heuristic:'Rule-based', jb_safety_floor:'Safety floor', jb_auto_advance:'Auto-advance', jb_missing_baseline:'No baseline \\u2192 hold',
         chDrift:'drift \\u0394', chTraj:'traj \\u0394', chCost:'cost', chP95:'p95', pr:'improvement PR', ver:'version',
         updated:'updated', poll:'10s', error:'error: ', connecting:'connecting\\u2026',
-        bd_rollback:'rollback', bd_advance:'advance', bd_hold:'hold', bd_canary:'canary', bd_pending:'pending', bd_promoted:'promoted', bd_rolled_back:'rolled back', bd_failed:'failed', bd_ok:'ok', bd_unknown:'unknown'
+        bd_rollback:'rollback', bd_advance:'advance', bd_hold:'hold', bd_canary:'canary', bd_pending:'pending', bd_promoted:'promoted', bd_rolled_back:'rolled back', bd_failed:'failed', bd_ok:'ok', bd_unknown:'unknown',
+        pAgents:'Managed Agents', empAgentT:'No agents registered', empAgentS:'use POST /v1/agents to register your first agent',
+        agVers:'versions', agCommit:'commit', agLastActive:'last active', agNoVer:'no version yet', agMetrics:'metrics'
       },
       ja: {
         sub:'自律カナリア制御',
@@ -386,7 +398,9 @@ _DASHBOARD_HTML = """\
         jb_gemini:'Gemini が判断', jb_gemini_failed:'Gemini 失敗 \\u2192 フォールバック', jb_heuristic:'ルールベース', jb_safety_floor:'安全床', jb_auto_advance:'自動前進', jb_missing_baseline:'基準なし \\u2192 保留',
         chDrift:'ドリフト\\u0394', chTraj:'軌跡\\u0394', chCost:'コスト', chP95:'p95', pr:'改善PR', ver:'バージョン',
         updated:'更新', poll:'10秒', error:'エラー: ', connecting:'接続中\\u2026',
-        bd_rollback:'ロールバック', bd_advance:'前進', bd_hold:'保留', bd_canary:'カナリア', bd_pending:'保留中', bd_promoted:'昇格', bd_rolled_back:'ロールバック済', bd_failed:'失敗', bd_ok:'ok', bd_unknown:'不明'
+        bd_rollback:'ロールバック', bd_advance:'前進', bd_hold:'保留', bd_canary:'カナリア', bd_pending:'保留中', bd_promoted:'昇格', bd_rolled_back:'ロールバック済', bd_failed:'失敗', bd_ok:'ok', bd_unknown:'不明',
+        pAgents:'管理中のエージェント', empAgentT:'エージェントが未登録です', empAgentS:'POST /v1/agents でエージェントを登録してください',
+        agVers:'バージョン数', agCommit:'コミット', agLastActive:'最終アクティビティ', agNoVer:'バージョンなし', agMetrics:'メトリクス'
       }
     };
     var lang = localStorage.getItem('aolang') || (((navigator.language||'').slice(0,2)==='ja') ? 'ja' : 'en');
@@ -396,6 +410,7 @@ _DASHBOARD_HTML = """\
       if (lang==='ja') return n + ' 件';
       if (kind==='dep') return n + ' total';
       if (kind==='dec') return n + ' decision' + (n!==1?'s':'');
+      if (kind==='agent') return n + ' agent' + (n!==1?'s':'');
       return n + ' eval' + (n!==1?'s':'');
     }
 
@@ -598,6 +613,36 @@ _DASHBOARD_HTML = """\
       area.innerHTML = html;
     }
 
+    // ── Agents ──
+    function renderAgents(agents) {
+      var area = document.getElementById('agent-area');
+      document.getElementById('c-agent').textContent = countLabel(agents.length, 'agent');
+      if (!agents.length) { area.innerHTML = emptyState(t('empAgentT'), t('empAgentS')); return; }
+      var html = '';
+      agents.forEach(function(a) {
+        var lv = a.latestVersion;
+        var commit = lv && lv.gitCommit ? lv.gitCommit.substring(0, 8) : null;
+        html += '<div class="dep">' +
+          '<div class="dep-top"><div>' +
+            '<div class="dep-id">' + esc(a.name) + '</div>' +
+            '<div class="dep-ver">' +
+              a.versionCount + ' ' + esc(t('agVers')) +
+              (commit ? ' · ' + esc(t('agCommit')) + ' <span style="color:var(--ink-1)">' + esc(commit) + '</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:var(--sp-2)">' +
+            '<span class="badge b-canary">' + esc(a.runtime) + '</span>' +
+            '<span style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-3)">' +
+              esc(t('agLastActive')) + ' ' + fmtTime(a.lastActivityAt) +
+            '</span>' +
+          '</div>' +
+          '</div>' +
+          (a.metricSampleCount ? '<div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-3);margin-top:var(--sp-2)">' + esc(t('agMetrics')) + ': ' + a.metricSampleCount + '</div>' : '') +
+        '</div>';
+      });
+      area.innerHTML = html;
+    }
+
     var lastData = null, lastAt = null;
     function applyStatics() {
       var els = document.querySelectorAll('[data-i18n]');
@@ -617,6 +662,7 @@ _DASHBOARD_HTML = """\
       buildChart(d.evaluations || []);
       renderDeps(d.deployments || []);
       renderDecs(d.decisions || [], d.pr_drafts || []);
+      renderAgents(d.agents || []);
       setStatus();
     }
     function setLang(l) {
@@ -686,11 +732,14 @@ def dashboard_data(store: StoreDep) -> JSONResponse:
     decisions = list_decisions()
     pr_drafts = list_pr_drafts()
 
+    agents = store.list_agents()
+
     payload = {
         "evaluations": [_eval_to_dict(e) for e in all_evals[:50]],
         "deployments": [_dep_to_dict(d) for d in all_deployments],
         "decisions": [_decision_to_dict(dr) for dr in decisions],
         "pr_drafts": [_pr_to_dict(p) for p in pr_drafts],
+        "agents": [_agent_summary_to_dict(a, store) for a in agents],
     }
     return JSONResponse(content=payload)
 
@@ -712,3 +761,35 @@ def _decision_to_dict(dr: object) -> dict:  # type: ignore[type-arg]
 
 def _pr_to_dict(p: object) -> dict:  # type: ignore[type-arg]
     return json.loads(p.model_dump_json())  # type: ignore[attr-defined]
+
+
+def _agent_summary_to_dict(agent: object, store: MemoryStore) -> dict:  # type: ignore[type-arg]
+    """Return a dashboard-friendly summary for a single managed agent."""
+    agent_id: str = agent.agentId  # type: ignore[attr-defined]
+    versions = store.list_versions(agent_id) or []
+    metrics_list = store.list_metrics(agent_id)
+
+    latest_version_dict: dict | None = None
+    last_activity: datetime = agent.createdAt  # type: ignore[attr-defined]
+
+    if versions:
+        latest = versions[-1]
+        latest_version_dict = {
+            "versionId": latest.versionId,
+            "gitCommit": latest.gitCommit,
+            "createdAt": latest.createdAt.isoformat(),
+        }
+        last_activity = max(last_activity, latest.createdAt)
+
+    metric_sample_count = sum(len(m.samples) for m in metrics_list)
+
+    return {
+        "agentId": agent_id,
+        "name": agent.name,  # type: ignore[attr-defined]
+        "runtime": agent.runtime,  # type: ignore[attr-defined]
+        "createdAt": agent.createdAt.isoformat(),  # type: ignore[attr-defined]
+        "versionCount": len(versions),
+        "latestVersion": latest_version_dict,
+        "lastActivityAt": last_activity.isoformat(),
+        "metricSampleCount": metric_sample_count,
+    }

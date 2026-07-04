@@ -1,0 +1,202 @@
+"""
+Tests for the Managed Agents section of the dashboard data endpoint.
+
+Verifies that:
+  - GET /dashboard/data includes an 'agents' key
+  - A fresh store with no agents returns an empty agents list
+  - An externally registered agent appears in the agents list with correct fields
+  - Agent versions (count, latestVersion, gitCommit) are reflected correctly
+  - Multiple agents with different version counts are all included
+  - Metric sample counts are aggregated correctly
+"""
+
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _register_agent(client: TestClient, name: str, description: str | None = None) -> dict:
+    body: dict = {"name": name, "runtime": "adk-cloud-run"}
+    if description:
+        body["description"] = description
+    resp = client.post("/v1/agents", json=body)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+def _create_version(
+    client: TestClient,
+    agent_id: str,
+    git_commit: str | None = None,
+) -> dict:
+    body = {
+        "image": "gcr.io/project/agent@sha256:abc123",
+        "model": "gemini-2.0-flash",
+        "promptDigest": "sha256:deadbeef",
+    }
+    if git_commit is not None:
+        body["gitCommit"] = git_commit
+    resp = client.post(f"/v1/agents/{agent_id}/versions", json=body)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+def _ingest_metrics(client: TestClient, agent_id: str, version_id: str) -> None:
+    resp = client.post(
+        f"/v1/agents/{agent_id}/metrics",
+        json={
+            "versionId": version_id,
+            "source": "test",
+            "samples": [
+                {"name": "retention_rate", "value": 0.85, "observedAt": "2026-06-26T10:00:00Z"},
+                {"name": "error_rate", "value": 0.02, "observedAt": "2026-06-26T10:01:00Z"},
+            ],
+        },
+    )
+    assert resp.status_code == 202, resp.text
+
+
+def _dashboard_data(client: TestClient) -> dict:
+    resp = client.get("/dashboard/data")
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+
+
+class TestDashboardAgentsKey:
+    def test_agents_key_present_in_dashboard_data(self, client: TestClient) -> None:
+        """The 'agents' key must always be present in the dashboard payload."""
+        data = _dashboard_data(client)
+        assert "agents" in data
+
+    def test_agents_empty_when_no_agents_registered(self, client: TestClient) -> None:
+        """An empty store returns an empty agents list (not missing, not null)."""
+        data = _dashboard_data(client)
+        assert isinstance(data["agents"], list)
+        assert len(data["agents"]) == 0
+
+
+class TestDashboardAgentRegistration:
+    def test_registered_agent_appears_in_agents_section(self, client: TestClient) -> None:
+        """An agent registered via POST /v1/agents must appear in dashboard/data agents."""
+        agent = _register_agent(client, "marketing-shorts-agent")
+        data = _dashboard_data(client)
+
+        agent_ids = [a["agentId"] for a in data["agents"]]
+        assert agent["agentId"] in agent_ids
+
+    def test_agent_fields_correct(self, client: TestClient) -> None:
+        """Agent summary contains all expected fields with correct values."""
+        agent = _register_agent(client, "marketing-shorts-agent", description="Test agent")
+        data = _dashboard_data(client)
+
+        entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
+        assert entry["name"] == "marketing-shorts-agent"
+        assert entry["runtime"] == "adk-cloud-run"
+        assert "createdAt" in entry
+        assert "lastActivityAt" in entry
+        assert "versionCount" in entry
+        assert "metricSampleCount" in entry
+
+    def test_agent_no_versions_has_zero_version_count(self, client: TestClient) -> None:
+        """An agent with no versions shows versionCount=0 and latestVersion=None."""
+        _register_agent(client, "bare-agent")
+        data = _dashboard_data(client)
+
+        entry = next(a for a in data["agents"] if a["name"] == "bare-agent")
+        assert entry["versionCount"] == 0
+        assert entry["latestVersion"] is None
+
+
+class TestDashboardAgentVersions:
+    def test_single_version_reflected_in_latest_version(self, client: TestClient) -> None:
+        """After registering one version, latestVersion appears with correct versionId."""
+        agent = _register_agent(client, "agent-with-version")
+        version = _create_version(client, agent["agentId"], git_commit="abc1234567")
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
+
+        assert entry["versionCount"] == 1
+        assert entry["latestVersion"] is not None
+        assert entry["latestVersion"]["versionId"] == version["versionId"]
+        assert entry["latestVersion"]["gitCommit"] == "abc1234567"
+
+    def test_latest_version_reflects_most_recent(self, client: TestClient) -> None:
+        """With two versions, latestVersion is the second (most recently registered)."""
+        agent = _register_agent(client, "multi-version-agent")
+        _create_version(client, agent["agentId"], git_commit="first-commit")
+        v2 = _create_version(client, agent["agentId"], git_commit="second-commit")
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
+
+        assert entry["versionCount"] == 2
+        assert entry["latestVersion"]["versionId"] == v2["versionId"]
+        assert entry["latestVersion"]["gitCommit"] == "second-commit"
+
+    def test_version_without_git_commit(self, client: TestClient) -> None:
+        """A version with no gitCommit has gitCommit=None in latestVersion."""
+        agent = _register_agent(client, "no-commit-agent")
+        _create_version(client, agent["agentId"])  # no gitCommit kwarg
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
+
+        assert entry["latestVersion"] is not None
+        assert entry["latestVersion"]["gitCommit"] is None
+
+
+class TestDashboardMultipleAgents:
+    def test_multiple_agents_all_appear(self, client: TestClient) -> None:
+        """Both a seed-style demo agent and an external agent appear in the same list."""
+        a1 = _register_agent(client, "demo-managed-agent")
+        a2 = _register_agent(client, "marketing-shorts-agent")
+        _create_version(client, a2["agentId"], git_commit="deadbeef1234")
+        _create_version(client, a2["agentId"], git_commit="cafebabe5678")
+
+        data = _dashboard_data(client)
+        agent_names = {a["name"] for a in data["agents"]}
+        assert "demo-managed-agent" in agent_names
+        assert "marketing-shorts-agent" in agent_names
+
+        mktg = next(a for a in data["agents"] if a["name"] == "marketing-shorts-agent")
+        assert mktg["versionCount"] == 2
+        assert mktg["latestVersion"]["gitCommit"] == "cafebabe5678"
+
+    def test_agents_count_matches_registered(self, client: TestClient) -> None:
+        """The number of entries in agents equals the number of registered agents."""
+        _register_agent(client, "agent-alpha")
+        _register_agent(client, "agent-beta")
+        _register_agent(client, "agent-gamma")
+
+        data = _dashboard_data(client)
+        assert len(data["agents"]) == 3
+
+
+class TestDashboardAgentMetrics:
+    def test_metric_sample_count_aggregated(self, client: TestClient) -> None:
+        """metricSampleCount reflects the total number of ingested metric samples."""
+        agent = _register_agent(client, "metrics-agent")
+        version = _create_version(client, agent["agentId"])
+        _ingest_metrics(client, agent["agentId"], version["versionId"])
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
+
+        # _ingest_metrics pushes 2 samples
+        assert entry["metricSampleCount"] == 2
+
+    def test_no_metrics_shows_zero_count(self, client: TestClient) -> None:
+        """An agent with no metrics ingested shows metricSampleCount=0."""
+        agent = _register_agent(client, "no-metrics-agent")
+        data = _dashboard_data(client)
+
+        entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
+        assert entry["metricSampleCount"] == 0

@@ -34,7 +34,17 @@ const DATA = {
      signal: {drift_drop: 0.21, trajectory_drop: 0.18, canary_latency_ms: 920},
      rationale: 'drift dropped'}
   ],
-  pr_drafts: [{prDraftId: 'pr-1', title: 'fix', prUrl: ''}]
+  pr_drafts: [{prDraftId: 'pr-1', title: 'fix', prUrl: ''}],
+  agents: [
+    {agentId: 'agent-demo-001', name: 'demo-managed-agent', runtime: 'adk-cloud-run',
+     createdAt: '2026-06-25T00:00:00Z', versionCount: 1,
+     latestVersion: {versionId: 'v1', gitCommit: 'aabbccd', createdAt: '2026-06-25T01:00:00Z'},
+     lastActivityAt: '2026-06-25T01:00:00Z', metricSampleCount: 0},
+    {agentId: 'agent-mktg-001', name: 'marketing-shorts-agent', runtime: 'adk-cloud-run',
+     createdAt: '2026-06-26T00:00:00Z', versionCount: 2,
+     latestVersion: {versionId: 'v2', gitCommit: 'deadbeef1234', createdAt: '2026-06-26T08:00:00Z'},
+     lastActivityAt: '2026-06-26T08:00:00Z', metricSampleCount: 3}
+  ]
 };
 
 function makeEl() {
@@ -76,12 +86,15 @@ setImmediate(() => { setImmediate(() => {
   const chart = get('chart-area', 'innerHTML');
   const decs = get('dec-area', 'innerHTML');
   const deps = get('dep-area', 'innerHTML');
+  const agts = get('agent-area', 'innerHTML');
   const fail = [];
   if (/error/i.test(status)) fail.push('status reported error: ' + status);
   if (!chart.includes('class="chart"')) fail.push('chart SVG not rendered');
   if (!deps.includes('class="dep"')) fail.push('deployment rows not rendered');
   if (!decs.includes('class="dec ')) fail.push('decision cards not rendered');
   if (!decs.includes('jb-gemini')) fail.push('judged-by (autonomy) pill not rendered');
+  if (!agts.includes('marketing-shorts-agent')) fail.push('agent cards not rendered');
+  if (!agts.includes('deadbeef')) fail.push('agent gitCommit not rendered');
   if (fail.length) { console.log('FAIL:' + fail.join(' | ')); process.exit(3); }
   console.log('OK:' + status);
   process.exit(0);
