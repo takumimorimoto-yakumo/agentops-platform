@@ -57,16 +57,18 @@ _BASELINE_COST_USD = 0.0018
 _BASELINE_LATENCY_MS = 380.0
 _BASELINE_RETENTION_RATE = 0.81
 
-# Degraded candidate scores — intentionally seeded with quality drops
-# drift drop = 0.88 - 0.79 = 0.09  →  within hard floor (0.10) but above warn (0.05)
-# trajectory drop = 0.92 - 0.83 = 0.09  →  same pattern
-# Both axes exceed the aggressive gray-zone threshold (warn * 1.5 = 0.075),
-# so the deterministic meta-agent fallback will choose ROLLBACK.
-_DEGRADED_DRIFT = 0.79
-_DEGRADED_TRAJECTORY = 0.83
-_DEGRADED_COST_USD = 0.0019
-_DEGRADED_LATENCY_MS = 520.0
-_DEGRADED_RETENTION_RATE = 0.63  # significant decline
+# Degraded candidate scores — intentionally seeded with unambiguous (but sub-floor) drops
+# drift drop       = 0.88 - 0.785 = 0.095  →  below hard floor (0.10) so Layer 1 stays silent
+# trajectory drop  = 0.92 - 0.825 = 0.095  →  same pattern; Gemini sees two clear regressions
+# cost increase    = (0.0021 - 0.0018) / 0.0018 ≈ +16.7%  →  below warn ceiling (20%)
+# latency          = 640 ms  →  elevated but below warn ceiling (1500 ms)
+# retention / task_success: sharply lower to add outcome-metric evidence across all axes.
+# Every soft warn threshold is breached; a rational LLM should choose ROLLBACK.
+_DEGRADED_DRIFT = 0.785
+_DEGRADED_TRAJECTORY = 0.825
+_DEGRADED_COST_USD = 0.0021
+_DEGRADED_LATENCY_MS = 640.0
+_DEGRADED_RETENTION_RATE = 0.48  # sharp decline (was 0.63)
 
 # Soft warning thresholds — aligned with Settings defaults (5% drop triggers concern)
 _WARN_DRIFT = 0.05
@@ -302,7 +304,7 @@ def run_demo(store: Any, settings: Any) -> dict[str, Any]:  # type: ignore[retur
             ),
             MetricSample(
                 name="task_success_rate",
-                value=0.71,
+                value=0.58,
                 observedAt=now,
                 dimensions={"env": "canary"},
             ),
@@ -312,7 +314,7 @@ def run_demo(store: Any, settings: Any) -> dict[str, Any]:  # type: ignore[retur
     _event(
         "METRICS",
         f"ingested retention_rate={_DEGRADED_RETENTION_RATE:.2f}  "
-        f"task_success_rate=0.71  (canary window t+1)",
+        f"task_success_rate=0.58  (canary window t+1)",
     )
     _info("Degradation is now observable across evaluation scores AND outcome metrics.")
 
