@@ -1,0 +1,96 @@
+/**
+ * AgentOps Platform — Design Token SSOT
+ *
+ * meigara の計器盤美学を継承。
+ * ハードコード禁止: 全色 / spacing / typography / motion は
+ * この 1 ファイルに集約し、CSS variables 経由で参照する。
+ *
+ * カラー用途固定:
+ *   --color-primary  (cobalt blue) : chart 主系列 / link / focus
+ *   --color-amber    (amber gold)  : meta-agent / LLM 判断ブロック専用
+ *   --color-up       (green)       : advance / promoted / success
+ *   --color-danger   (red)         : rollback / failed / threshold 違反
+ */
+
+/* ═══════════════════════════════════════════════════════════════
+   Dark mode (default)
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* ─── Backgrounds ─── */
+  --paper:           #090B0F;
+  --surface:         #0F1218;
+  --surface-raised:  #141820;
+
+  /* ─── Border ─── */
+  --border-line:     rgba(255, 255, 255, 0.09);
+  --border-strong:   rgba(255, 255, 255, 0.14);
+
+  /* ─── Text 3-tier ─── */
+  --text-high: rgba(255, 255, 255, 0.92);
+  --text-mid:  rgba(255, 255, 255, 0.58);
+  --text-low:  rgba(255, 255, 255, 0.34);
+
+  /* ─── Brand colors ─── */
+  --color-primary:  #2A7CF6;    /* cobalt blue  — chart primary / link / focus */
+  --color-amber:    #E8AB32;    /* amber gold   — meta-agent / LLM blocks 専用 */
+  --color-up:       #1FA060;    /* green        — advance / promoted / success */
+  --color-danger:   #E84040;    /* red          — rollback / failed / below-threshold */
+  --color-violet:   #9B8AE8;    /* violet       — secondary chart series */
+
+  /* ─── Tint tokens (color-mix) ─── */
+  --tint-primary: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  --tint-amber:   color-mix(in srgb, var(--color-amber)   14%, transparent);
+  --tint-up:      color-mix(in srgb, var(--color-up)      12%, transparent);
+  --tint-danger:  color-mix(in srgb, var(--color-danger)  12%, transparent);
+  --tint-violet:  color-mix(in srgb, var(--color-violet)  12%, transparent);
+
+  /* ─── Semantic feedback (state-map) ─── */
+  --color-canary:      var(--color-primary);
+  --color-pending:     var(--text-low);
+  --color-promoted:    var(--color-up);
+  --color-rolled-back: var(--color-danger);
+  --color-failed:      var(--color-danger);
+
+  /* ─── Typography ─── */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  /* ─── Type scale (計器盤スケール) ─── */
+  --text-3xs:  0.5rem;    /*  8px — badge / unit 超小型 */
+  --text-2xs:  0.625rem;  /* 10px — caption の caption */
+  --text-xs:   0.75rem;   /* 12px — caption / mono cell */
+  --text-sm:   0.8125rem; /* 13px — secondary / metadata */
+  --text-base: 0.875rem;  /* 14px — body 標準 */
+  --text-md:   1rem;      /* 16px — body 強調 */
+  --text-lg:   1.25rem;   /* 20px — KPI medium */
+  --text-xl:   1.75rem;   /* 28px — KPI large */
+  --text-2xl:  2.5rem;    /* 40px — KPI hero */
+
+  /* ─── Border radius (sharp / 計器盤) ─── */
+  --radius-none: 0px;
+  --radius-sm:   2px;
+  --radius-md:   4px;
+  --radius-lg:   6px;
+
+  /* ─── Spacing (8px primary + 4px fine) ─── */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  24px;
+  --sp-6:  32px;
+  --sp-7:  48px;
+
+  /* ─── Layout ─── */
+  --maxw:     1320px;
+  --header-h: 52px;
+
+  /* ─── Motion ─── */
+  --ease:             cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast:    120ms;
+  --duration-base:    200ms;
+  --duration-slow:    350ms;
+
+  /* ─── Shadow (最小限; depth は border-line で表現) ─── */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32);
+}

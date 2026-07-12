@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgentOps Platform — Dashboard</title>
+  <link rel="stylesheet" href="/static/tokens.css" />
+  <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="hdr">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12h4l3 8 4-16 3 8h4"/>
+        </svg>
+      </span>
+      <div>
+        <div class="brand-name">AgentOps Platform</div>
+        <div class="brand-sub" data-i18n="sub">Autonomous Canary Control</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" class="lang-btn" data-lang="en">EN</button>
+        <button type="button" class="lang-btn" data-lang="ja">日本語</button>
+      </div>
+      <span class="live">
+        <span class="dot" id="dot"></span>
+        <span id="status">connecting…</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <!-- ── KPI Grid (gap:1px + border-line 背景で線を描く) ── -->
+    <section class="kpis rise" style="animation-delay:0s" id="kpis" aria-label="Key metrics">
+
+      <!-- Evaluations -->
+      <div class="kpi k-primary">
+        <div class="kpi-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 3v18h18"/><path d="M7 13l3-3 3 3 4-5"/>
+          </svg>
+          <span data-i18n="kEval">Evaluations</span>
+        </div>
+        <div class="kpi-val" id="k-evals">—</div>
+        <div class="kpi-hint" id="k-evals-h">&nbsp;</div>
+      </div>
+
+      <!-- Active canaries -->
+      <div class="kpi k-up">
+        <div class="kpi-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>
+          </svg>
+          <span data-i18n="kCanary">Active canaries</span>
+        </div>
+        <div class="kpi-val" id="k-canary">—</div>
+        <div class="kpi-hint" id="k-canary-h">&nbsp;</div>
+      </div>
+
+      <!-- Auto rollbacks -->
+      <div class="kpi k-danger">
+        <div class="kpi-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>
+          </svg>
+          <span data-i18n="kRb">Auto rollbacks</span>
+        </div>
+        <div class="kpi-val" id="k-rb">—</div>
+        <div class="kpi-hint" id="k-rb-h">&nbsp;</div>
+      </div>
+
+      <!-- LLM-judged (amber = LLM 専用) -->
+      <div class="kpi k-amber">
+        <div class="kpi-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 5a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 0 3 3 0 0 0 2-5 3 3 0 0 0-2-5 3 3 0 0 0-3-3Z"/>
+            <path d="M12 5v14"/>
+          </svg>
+          <span data-i18n="kLlm">LLM-judged</span>
+        </div>
+        <div class="kpi-val" id="k-llm">—</div>
+        <div class="kpi-hint" id="k-llm-h">&nbsp;</div>
+      </div>
+
+    </section>
+
+    <!-- ── Main 2-column layout ── -->
+    <div class="main-grid">
+
+      <!-- Left column: Score Timeline + Deployment Status -->
+      <div style="display:flex;flex-direction:column;gap:var(--sp-3)">
+
+        <!-- Evaluation Score Timeline -->
+        <div class="panel rise" style="animation-delay:.12s">
+          <div class="p-head">
+            <svg class="p-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 3v18h18"/><path d="M19 9l-5 5-3-3-4 4"/>
+            </svg>
+            <span class="p-title" data-i18n="pEval">Evaluation Score Timeline</span>
+            <span class="p-count" id="c-eval">—</span>
+          </div>
+          <div class="p-body">
+            <div id="chart-area"></div>
+          </div>
+        </div>
+
+        <!-- Deployment Status -->
+        <div class="panel rise" style="animation-delay:.18s">
+          <div class="p-head">
+            <svg class="p-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            <span class="p-title" data-i18n="pDep">Deployment Status</span>
+            <span class="p-count" id="c-dep">—</span>
+          </div>
+          <div class="p-body">
+            <div id="dep-area"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right column: Meta-agent Decisions フィード -->
+      <div class="panel rise" style="animation-delay:.18s">
+        <!-- amber left-border: LLM / meta-agent 判断ブロック専用 -->
+        <div class="p-head p-head--amber">
+          <svg class="p-ico p-ico--amber" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 5a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 0 3 3 0 0 0 2-5 3 3 0 0 0-2-5 3 3 0 0 0-3-3Z"/>
+            <path d="M12 5v14"/>
+          </svg>
+          <span class="p-title" data-i18n="pDec">Meta-agent Decisions</span>
+          <span class="p-count" id="c-dec">—</span>
+        </div>
+        <div class="p-body" style="overflow-y:auto;max-height:640px">
+          <div id="dec-area"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Managed Agents (full-width table) ── -->
+    <div class="panel rise" style="animation-delay:.26s">
+      <div class="p-head">
+        <svg class="p-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="5" y="7" width="14" height="12" rx="2"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/>
+          <path d="M9 11h.01M15 11h.01"/>
+        </svg>
+        <span class="p-title" data-i18n="pAgents">Managed Agents</span>
+        <span class="p-count" id="c-agent">—</span>
+      </div>
+      <div class="p-body">
+        <div id="agent-area"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

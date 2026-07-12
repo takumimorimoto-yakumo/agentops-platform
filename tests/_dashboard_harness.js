@@ -57,11 +57,33 @@ function makeEl() {
   };
 }
 const elements = {};
+// CSS variable shim — returns recognizable hex values for token names
+const CSS_VARS = {
+  '--color-primary':  '#2A7CF6',
+  '--color-up':       '#1FA060',
+  '--color-danger':   '#E84040',
+  '--color-amber':    '#E8AB32',
+  '--color-violet':   '#9B8AE8',
+  '--border-line':    'rgba(255,255,255,0.09)',
+  '--text-low':       'rgba(255,255,255,0.34)',
+  '--text-mid':       'rgba(255,255,255,0.58)',
+  '--text-high':      'rgba(255,255,255,0.92)',
+  '--paper':          '#090B0F',
+};
+
 global.document = {
   getElementById(id) { return elements[id] || (elements[id] = makeEl()); },
   querySelectorAll() { return []; },
-  documentElement: {},
+  documentElement: {
+    // Allow cssVar() calls to resolve to known token hex values
+  },
   addEventListener() {}
+};
+// getComputedStyle shim — called by cssVar() in dashboard.js
+global.getComputedStyle = function() {
+  return {
+    getPropertyValue(name) { return CSS_VARS[name.trim()] || ''; }
+  };
 };
 global.localStorage = {getItem() { return null; }, setItem() {}};
 global.navigator = {language: 'en'};

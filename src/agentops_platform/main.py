@@ -7,8 +7,11 @@ All long-running operations return 202 + resource id for polling.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from config.defaults import get_settings
 from .dashboard import router as dashboard_router
@@ -38,6 +41,10 @@ app.include_router(deployments.router, prefix=PREFIX)
 app.include_router(metrics.router, prefix=PREFIX)
 app.include_router(events.router, prefix=PREFIX)
 app.include_router(dashboard_router)  # no prefix; served at /dashboard
+
+# ── Static files (CSS / JS / HTML for dashboard) ──────────────────────────────
+_STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
