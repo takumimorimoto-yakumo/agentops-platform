@@ -306,3 +306,124 @@ class TestDashboardVideoQaSummary:
         data = _dashboard_data(client)
         entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
         assert "videoQaSummary" in entry
+
+
+def _ingest_metrics_msa_wire(
+    client: TestClient,
+    agent_id: str,
+    version_id: str,
+    qa_pass: float,
+    observed_at: str = "2026-07-11T10:00:00Z",
+) -> None:
+    """Helper: POST metrics in MSA real wire format.
+
+    marketing-shorts-agent sends video_qa_pass as a flat MetricSample
+    (value 1.0 / 0.0) with NO extra field.
+    """
+    resp = client.post(
+        f"/v1/agents/{agent_id}/metrics",
+        json={
+            "versionId": version_id,
+            "source": "video-qa",
+            "samples": [
+                {
+                    "name": "video_qa_pass",
+                    "value": qa_pass,
+                    "observedAt": observed_at,
+                },
+            ],
+            # extra は意図的に省略（MSA の実 wire 形式）
+        },
+    )
+    assert resp.status_code == 202, resp.text
+
+
+class TestDashboardVideoQaSummaryMsaWire:
+    """MSA 実 wire 形式（extra なし・samples に video_qa_pass）のテスト群。"""
+
+    def _setup(self, client: TestClient, name: str) -> tuple[str, str]:
+        agent = _register_agent(client, name)
+        version = _create_version(client, agent["agentId"])
+        return agent["agentId"], version["versionId"]
+
+    def test_msa_single_pass_via_sample(self, client: TestClient) -> None:
+        """extra なし・samples[video_qa_pass=1.0] → pass_count=1, latest_pass=True."""
+        agent_id, version_id = self._setup(client, "msa-qa-single-pass")
+        _ingest_metrics_msa_wire(client, agent_id, version_id, qa_pass=1.0)
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["pass_count"] == 1
+        assert qa["fail_count"] == 0
+        assert qa["latest_pass"] is True
+
+    def test_msa_single_fail_via_sample(self, client: TestClient) -> None:
+        """extra なし・samples[video_qa_pass=0.0] → fail_count=1, latest_pass=False."""
+        agent_id, version_id = self._setup(client, "msa-qa-single-fail")
+        _ingest_metrics_msa_wire(client, agent_id, version_id, qa_pass=0.0)
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["pass_count"] == 0
+        assert qa["fail_count"] == 1
+        assert qa["latest_pass"] is False
+
+    def test_msa_mixed_verdicts_via_sample(self, client: TestClient) -> None:
+        """extra なし・pass 2件 + fail 1件 → counts と latest が正しい。"""
+        agent_id, version_id = self._setup(client, "msa-qa-mixed")
+        _ingest_metrics_msa_wire(
+            client, agent_id, version_id, qa_pass=1.0, observed_at="2026-07-11T10:00:00Z"
+        )
+        _ingest_metrics_msa_wire(
+            client, agent_id, version_id, qa_pass=0.0, observed_at="2026-07-11T11:00:00Z"
+        )
+        _ingest_metrics_msa_wire(
+            client, agent_id, version_id, qa_pass=1.0, observed_at="2026-07-11T12:00:00Z"
+        )
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["pass_count"] == 2
+        assert qa["fail_count"] == 1
+        # 最後に投入した qa_pass=1.0 が latest
+        assert qa["latest_pass"] is True
+
+    def test_msa_latest_at_reflects_observed_at(self, client: TestClient) -> None:
+        """extra なし wire で latest_at が samples[video_qa_pass].observedAt を反映する。"""
+        agent_id, version_id = self._setup(client, "msa-qa-latest-at")
+        _ingest_metrics_msa_wire(
+            client, agent_id, version_id, qa_pass=1.0, observed_at="2026-07-11T09:30:00Z"
+        )
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["latest_at"] is not None
+        assert "2026-07-11" in qa["latest_at"]
+
+    def test_msa_latest_reason_is_none_when_no_extra(self, client: TestClient) -> None:
+        """extra がない MSA wire では latest_reason が None になる（フロントは None を安全に扱う想定）。"""
+        agent_id, version_id = self._setup(client, "msa-qa-no-reason")
+        _ingest_metrics_msa_wire(client, agent_id, version_id, qa_pass=1.0)
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["latest_reason"] is None
+
+    def test_msa_wire_does_not_affect_extra_path(self, client: TestClient) -> None:
+        """extra 経路と samples 経路を混在させても合計 counts が正しい。"""
+        agent_id, version_id = self._setup(client, "msa-qa-mixed-paths")
+        # extra 経路 (pass)
+        _ingest_metrics_with_qa(client, agent_id, version_id, qa_pass=1.0)
+        # MSA wire 経路 (fail)
+        _ingest_metrics_msa_wire(client, agent_id, version_id, qa_pass=0.0)
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["pass_count"] == 1
+        assert qa["fail_count"] == 1

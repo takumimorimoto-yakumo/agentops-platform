@@ -113,19 +113,48 @@ def _pr_to_dict(p: object) -> dict:  # type: ignore[type-arg]
 
 
 def _compute_video_qa_summary(metrics_list: list) -> dict:  # type: ignore[type-arg]
-    """Aggregate video_qa_* fields from MetricIngest.extra across all ingest batches.
+    """Aggregate video_qa_* fields from MetricIngest batches across two wire formats.
+
+    Supported wire formats (checked in order per batch):
+      (a) extra 経路: m.extra contains "video_qa_pass" — original format.
+      (b) samples 経路 (MSA real wire): m.extra is absent/None, but m.samples contains
+          a MetricSample with name == "video_qa_pass" and value 1.0 / 0.0.
+          1 batch = 1 verdict (first matching sample used).
 
     Returns a dict with:
       pass_count   — number of batches where video_qa_pass == 1.0
       fail_count   — number of batches where video_qa_pass == 0.0
       latest_pass  — True/False/None for the most recent verdict
       latest_at    — ISO timestamp of the most recent QA batch (None if none)
-      latest_reason — video_qa_visual_reason from the most recent batch (None if absent)
+      latest_reason — video_qa_visual_reason from extra (None if absent / samples-only wire)
     """
-    qa_batches = [
-        m for m in metrics_list
-        if m.extra is not None and "video_qa_pass" in m.extra
-    ]
+
+    def _batch_qa_value(m: object) -> float | None:
+        """Return the video_qa_pass float for a batch, or None if not a QA batch."""
+        # (a) extra 経路
+        if getattr(m, "extra", None) is not None and "video_qa_pass" in m.extra:  # type: ignore[union-attr]
+            return float(m.extra["video_qa_pass"])  # type: ignore[union-attr]
+        # (b) samples 経路 — MSA real wire
+        for s in getattr(m, "samples", None) or []:
+            if getattr(s, "name", None) == "video_qa_pass":
+                return float(s.value)
+        return None
+
+    def _batch_observed_at(m: object) -> object | None:
+        """Return the observedAt for the video_qa_pass sample (samples path) or
+        the max observedAt of all samples (extra path fallback)."""
+        # MSA wire: use the video_qa_pass sample's observedAt directly
+        for s in getattr(m, "samples", None) or []:
+            if getattr(s, "name", None) == "video_qa_pass":
+                return s.observedAt
+        # extra wire: max of all samples
+        samples = getattr(m, "samples", None) or []
+        if samples:
+            return max(s.observedAt for s in samples)
+        return None
+
+    qa_batches = [m for m in metrics_list if _batch_qa_value(m) is not None]
+
     if not qa_batches:
         return {
             "pass_count": 0,
@@ -135,18 +164,21 @@ def _compute_video_qa_summary(metrics_list: list) -> dict:  # type: ignore[type-
             "latest_reason": None,
         }
 
-    pass_count = sum(1 for m in qa_batches if m.extra.get("video_qa_pass") == 1.0)
+    pass_count = sum(1 for m in qa_batches if _batch_qa_value(m) == 1.0)
     fail_count = len(qa_batches) - pass_count
 
     # Most recent batch = last element (store appends in arrival order)
     latest = qa_batches[-1]
-    latest_pass = latest.extra.get("video_qa_pass") == 1.0
-    latest_reason = latest.extra.get("video_qa_visual_reason")
+    latest_pass = _batch_qa_value(latest) == 1.0
 
-    # Derive timestamp from samples if available
+    # latest_reason: extra 経路のみ（samples wire には reason が無い）
+    extra = getattr(latest, "extra", None)
+    latest_reason: str | None = extra.get("video_qa_visual_reason") if extra else None
+
     latest_at: str | None = None
-    if latest.samples:
-        latest_at = max(s.observedAt for s in latest.samples).isoformat()
+    ts = _batch_observed_at(latest)
+    if ts is not None:
+        latest_at = ts.isoformat()  # type: ignore[union-attr]
 
     return {
         "pass_count": pass_count,
