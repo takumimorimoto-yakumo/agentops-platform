@@ -112,6 +112,51 @@ def _pr_to_dict(p: object) -> dict:  # type: ignore[type-arg]
     return json.loads(p.model_dump_json())  # type: ignore[attr-defined]
 
 
+def _compute_video_qa_summary(metrics_list: list) -> dict:  # type: ignore[type-arg]
+    """Aggregate video_qa_* fields from MetricIngest.extra across all ingest batches.
+
+    Returns a dict with:
+      pass_count   — number of batches where video_qa_pass == 1.0
+      fail_count   — number of batches where video_qa_pass == 0.0
+      latest_pass  — True/False/None for the most recent verdict
+      latest_at    — ISO timestamp of the most recent QA batch (None if none)
+      latest_reason — video_qa_visual_reason from the most recent batch (None if absent)
+    """
+    qa_batches = [
+        m for m in metrics_list
+        if m.extra is not None and "video_qa_pass" in m.extra
+    ]
+    if not qa_batches:
+        return {
+            "pass_count": 0,
+            "fail_count": 0,
+            "latest_pass": None,
+            "latest_at": None,
+            "latest_reason": None,
+        }
+
+    pass_count = sum(1 for m in qa_batches if m.extra.get("video_qa_pass") == 1.0)
+    fail_count = len(qa_batches) - pass_count
+
+    # Most recent batch = last element (store appends in arrival order)
+    latest = qa_batches[-1]
+    latest_pass = latest.extra.get("video_qa_pass") == 1.0
+    latest_reason = latest.extra.get("video_qa_visual_reason")
+
+    # Derive timestamp from samples if available
+    latest_at: str | None = None
+    if latest.samples:
+        latest_at = max(s.observedAt for s in latest.samples).isoformat()
+
+    return {
+        "pass_count": pass_count,
+        "fail_count": fail_count,
+        "latest_pass": latest_pass,
+        "latest_at": latest_at,
+        "latest_reason": latest_reason,
+    }
+
+
 def _agent_summary_to_dict(agent: object, store: MemoryStore) -> dict:  # type: ignore[type-arg]
     """Return a dashboard-friendly summary for a single managed agent."""
     agent_id: str = agent.agentId  # type: ignore[attr-defined]
@@ -131,6 +176,7 @@ def _agent_summary_to_dict(agent: object, store: MemoryStore) -> dict:  # type: 
         last_activity = max(last_activity, latest.createdAt)
 
     metric_sample_count = sum(len(m.samples) for m in metrics_list)
+    video_qa_summary = _compute_video_qa_summary(metrics_list)
 
     return {
         "agentId": agent_id,
@@ -141,4 +187,5 @@ def _agent_summary_to_dict(agent: object, store: MemoryStore) -> dict:  # type: 
         "latestVersion": latest_version_dict,
         "lastActivityAt": last_activity.isoformat(),
         "metricSampleCount": metric_sample_count,
+        "videoQaSummary": video_qa_summary,
     }

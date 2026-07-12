@@ -200,3 +200,109 @@ class TestDashboardAgentMetrics:
 
         entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
         assert entry["metricSampleCount"] == 0
+
+
+def _ingest_metrics_with_qa(
+    client: TestClient,
+    agent_id: str,
+    version_id: str,
+    qa_pass: float,
+    reason: str | None = None,
+) -> None:
+    """Helper: POST metrics with video_qa_pass in extra."""
+    extra: dict = {"video_qa_pass": qa_pass}
+    if reason is not None:
+        extra["video_qa_visual_reason"] = reason
+    resp = client.post(
+        f"/v1/agents/{agent_id}/metrics",
+        json={
+            "versionId": version_id,
+            "source": "video-qa",
+            "samples": [
+                {"name": "qa_sentinel", "value": qa_pass, "observedAt": "2026-07-11T10:00:00Z"},
+            ],
+            "extra": extra,
+        },
+    )
+    assert resp.status_code == 202, resp.text
+
+
+class TestDashboardVideoQaSummary:
+    """Video QA サマリ算出のテスト群。"""
+
+    def _setup(self, client: TestClient, name: str) -> tuple[str, str]:
+        agent = _register_agent(client, name)
+        version = _create_version(client, agent["agentId"])
+        return agent["agentId"], version["versionId"]
+
+    def test_no_qa_metrics_returns_zero_counts(self, client: TestClient) -> None:
+        """extra に video_qa_pass が含まれないメトリクスだけの場合、pass/fail ともに 0。"""
+        agent = _register_agent(client, "qa-agent-no-qa")
+        version = _create_version(client, agent["agentId"])
+        # QA なしの通常メトリクス
+        _ingest_metrics(client, agent["agentId"], version["versionId"])
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
+        qa = entry["videoQaSummary"]
+        assert qa["pass_count"] == 0
+        assert qa["fail_count"] == 0
+        assert qa["latest_pass"] is None
+        assert qa["latest_at"] is None
+
+    def test_single_pass_verdict(self, client: TestClient) -> None:
+        """video_qa_pass=1.0 の1件でpass_count=1, fail_count=0, latest_pass=True。"""
+        agent_id, version_id = self._setup(client, "qa-agent-single-pass")
+        _ingest_metrics_with_qa(client, agent_id, version_id, qa_pass=1.0)
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["pass_count"] == 1
+        assert qa["fail_count"] == 0
+        assert qa["latest_pass"] is True
+
+    def test_single_fail_verdict(self, client: TestClient) -> None:
+        """video_qa_pass=0.0 の1件でpass_count=0, fail_count=1, latest_pass=False。"""
+        agent_id, version_id = self._setup(client, "qa-agent-single-fail")
+        _ingest_metrics_with_qa(client, agent_id, version_id, qa_pass=0.0)
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["pass_count"] == 0
+        assert qa["fail_count"] == 1
+        assert qa["latest_pass"] is False
+
+    def test_mixed_verdicts_count_correctly(self, client: TestClient) -> None:
+        """pass 2件 + fail 1件 → pass_count=2, fail_count=1, latest_pass は最終バッチ。"""
+        agent_id, version_id = self._setup(client, "qa-agent-mixed")
+        _ingest_metrics_with_qa(client, agent_id, version_id, qa_pass=1.0)
+        _ingest_metrics_with_qa(client, agent_id, version_id, qa_pass=0.0)
+        _ingest_metrics_with_qa(client, agent_id, version_id, qa_pass=1.0)
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["pass_count"] == 2
+        assert qa["fail_count"] == 1
+        # 最後に投入した qa_pass=1.0 が latest
+        assert qa["latest_pass"] is True
+
+    def test_fail_reason_is_included(self, client: TestClient) -> None:
+        """video_qa_visual_reason が extra にある場合、latest_reason に反映される。"""
+        agent_id, version_id = self._setup(client, "qa-agent-reason")
+        reason = "映像が暗すぎてテロップが判読できない"
+        _ingest_metrics_with_qa(client, agent_id, version_id, qa_pass=0.0, reason=reason)
+
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent_id)
+        qa = entry["videoQaSummary"]
+        assert qa["latest_reason"] == reason
+
+    def test_video_qa_summary_key_always_present(self, client: TestClient) -> None:
+        """videoQaSummary キーはメトリクスがなくても常に存在する。"""
+        agent = _register_agent(client, "qa-key-presence-agent")
+        data = _dashboard_data(client)
+        entry = next(a for a in data["agents"] if a["agentId"] == agent["agentId"])
+        assert "videoQaSummary" in entry

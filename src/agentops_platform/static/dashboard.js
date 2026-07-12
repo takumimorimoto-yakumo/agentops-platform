@@ -44,7 +44,10 @@
       bd_canary: 'canary', bd_pending: 'pending', bd_promoted: 'promoted',
       bd_rolled_back: 'rolled back', bd_failed: 'failed', bd_ok: 'ok', bd_unknown: 'unknown',
       agVers: 'versions', agCommit: 'commit', agLastActive: 'last active',
-      agNoVer: 'no version yet', agMetrics: 'metrics'
+      agNoVer: 'no version yet', agMetrics: 'metrics',
+      agQaPass: 'pass', agQaFail: 'fail', agQaLabel: 'Video QA',
+      agQaLatestPass: 'latest: ✅ pass', agQaLatestFail: 'latest: ❌ fail',
+      agQaAt: 'at'
     },
     ja: {
       sub: '自律カナリア制御',
@@ -76,7 +79,10 @@
       bd_canary: 'カナリア', bd_pending: '保留中', bd_promoted: '昇格',
       bd_rolled_back: 'ロールバック済', bd_failed: '失敗', bd_ok: 'ok', bd_unknown: '不明',
       agVers: 'バージョン数', agCommit: 'コミット', agLastActive: '最終アクティビティ',
-      agNoVer: 'バージョンなし', agMetrics: 'メトリクス'
+      agNoVer: 'バージョンなし', agMetrics: 'メトリクス',
+      agQaPass: '合格', agQaFail: '不合格', agQaLabel: 'Video QA',
+      agQaLatestPass: '直近: ✅ 合格', agQaLatestFail: '直近: ❌ 不合格',
+      agQaAt: '時刻'
     }
   };
 
@@ -364,6 +370,28 @@
     agents.forEach(function (a) {
       var lv = a.latestVersion;
       var commit = lv && lv.gitCommit ? lv.gitCommit.substring(0, 8) : null;
+      var qa = a.videoQaSummary || {};
+      var hasQa = qa.pass_count !== undefined && (qa.pass_count + qa.fail_count) > 0;
+
+      // ── Video QA サマリ行を組み立てる ──
+      var qaHtml = '';
+      if (hasQa) {
+        var verdictBadge = qa.latest_pass
+          ? '<span class="badge b-ok">' + esc(t('agQaLatestPass')) + '</span>'
+          : '<span class="badge b-failed">' + esc(t('agQaLatestFail')) + '</span>';
+        var timeStr = qa.latest_at ? ' <span style="color:var(--text-low)">' + esc(t('agQaAt')) + ' ' + fmtTime(qa.latest_at) + '</span>' : '';
+        var passPart = '<span style="color:var(--color-up)">✅ ' + esc(t('agQaPass')) + ' ' + qa.pass_count + '</span>';
+        var failPart = '<span style="color:var(--color-danger)">❌ ' + esc(t('agQaFail')) + ' ' + qa.fail_count + '</span>';
+        qaHtml += '<div style="margin-top:var(--sp-2);display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-2)">';
+        qaHtml += '<span style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--text-mid)">' + esc(t('agQaLabel')) + ':</span>';
+        qaHtml += passPart + ' / ' + failPart;
+        qaHtml += ' ' + verdictBadge + timeStr;
+        qaHtml += '</div>';
+        if (qa.latest_reason) {
+          qaHtml += '<div style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--text-low);margin-top:var(--sp-1);padding-left:var(--sp-2);border-left:2px solid var(--color-danger)">' + esc(qa.latest_reason) + '</div>';
+        }
+      }
+
       html += '<div class="dep">' +
         '<div class="dep-top"><div>' +
         '<div class="dep-id">' + esc(a.name) + '</div>' +
@@ -377,6 +405,7 @@
         esc(t('agLastActive')) + ' ' + fmtTime(a.lastActivityAt) +
         '</span></div></div>' +
         (a.metricSampleCount ? '<div style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--text-low);margin-top:var(--sp-2)">' + esc(t('agMetrics')) + ': ' + a.metricSampleCount + '</div>' : '') +
+        qaHtml +
         '</div>';
     });
     area.innerHTML = html;

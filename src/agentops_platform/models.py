@@ -188,6 +188,14 @@ class MetricIngest(BaseModel):
             f"Metric samples to ingest. Maximum {MAX_METRIC_SAMPLES} samples per request."
         )
     )
+    extra: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Arbitrary key-value payload attached to this ingest batch. "
+            "Used for agent-specific signals such as Video QA results "
+            "(e.g. video_qa_pass, video_qa_visual_reason)."
+        ),
+    )
 
     @field_validator("samples")
     @classmethod
