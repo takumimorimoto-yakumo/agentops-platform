@@ -393,6 +393,73 @@ class TestDeployments:
         resp = client.post(f"/v1/deployments/{dep['deploymentId']}:rollback")
         assert resp.status_code == 409
 
+    def test_decide_returns_decision_record(self, client: TestClient) -> None:
+        """Happy path: canary deployment with evaluation → :decide returns DecisionRecord."""
+        from agentops_platform.meta_agent import _clear_store
+
+        _clear_store()
+        agent = _register_agent(client)
+        version = _create_version(client, agent["agentId"])
+        suite = _create_suite(client, agent["agentId"])
+
+        dep = client.post(
+            f"/v1/agents/{agent['agentId']}/deployments",
+            json={
+                "versionId": version["versionId"],
+                "strategy": {"type": "canary", "steps": [10, 50, 100]},
+            },
+        ).json()
+
+        # Trigger evaluation so the cycle has data to work with
+        client.post(
+            f"/v1/agents/{agent['agentId']}/evaluations",
+            json={"versionId": version["versionId"], "suiteId": suite["suiteId"]},
+        )
+
+        resp = client.post(f"/v1/deployments/{dep['deploymentId']}:decide")
+        assert resp.status_code == 200, resp.text
+        record = resp.json()
+        assert record["deploymentId"] == dep["deploymentId"]
+        assert record["action"] in ("advance", "hold", "rollback")
+        assert "decisionId" in record
+        assert "rationale" in record
+        assert "signal" in record
+        assert "decidedAt" in record
+
+        # Decision must be persisted in the meta-agent store
+        from agentops_platform.meta_agent import list_decisions
+
+        decisions = list_decisions(deployment_id=dep["deploymentId"])
+        assert len(decisions) >= 1
+        assert decisions[-1].decisionId == record["decisionId"]
+
+    def test_decide_not_found(self, client: TestClient) -> None:
+        """404 when deployment does not exist."""
+        resp = client.post("/v1/deployments/nonexistent-id:decide")
+        assert resp.status_code == 404
+
+    def test_decide_terminal_state(self, client: TestClient) -> None:
+        """409 when deployment is already in a terminal state (rolled_back)."""
+        from agentops_platform.meta_agent import _clear_store
+
+        _clear_store()
+        agent = _register_agent(client)
+        version = _create_version(client, agent["agentId"])
+
+        dep = client.post(
+            f"/v1/agents/{agent['agentId']}/deployments",
+            json={
+                "versionId": version["versionId"],
+                "strategy": {"type": "canary", "steps": [10]},
+            },
+        ).json()
+
+        # Put deployment into terminal state
+        client.post(f"/v1/deployments/{dep['deploymentId']}:rollback")
+
+        resp = client.post(f"/v1/deployments/{dep['deploymentId']}:decide")
+        assert resp.status_code == 409
+
 
 # ── Metrics ingest tests ──────────────────────────────────────────────────────
 

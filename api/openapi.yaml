@@ -325,6 +325,31 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Deployment' }
 
+  /deployments/{deploymentId}:decide:
+    parameters:
+      - $ref: '#/components/parameters/deploymentId'
+    post:
+      tags: [deployments]
+      operationId: decideDeployment
+      summary: Run one meta-agent decision cycle
+      description: |
+        Executes one complete MetaAgentCycle for the given canary deployment.
+        Evaluates the safety floor (Layer 1) and gray-zone signals (Layer 2)
+        to decide whether to advance, hold, or rollback the canary.
+        Returns a DecisionRecord as an audit trail entry.
+      responses:
+        '200':
+          description: Decision cycle completed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DecisionRecord' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Deployment is already in a terminal state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /agents/{agentId}/metrics:
     parameters:
       - $ref: '#/components/parameters/agentId'
@@ -597,6 +622,55 @@ components:
               dimensions:
                 type: object
                 additionalProperties: { type: string }
+
+    GrayZoneSignal:
+      type: object
+      description: Soft-limit breach signals used for gray-zone decisions
+      properties:
+        drift_drop:
+          type: number
+          description: Observed drift drop (stable − canary)
+          default: 0.0
+        trajectory_drop:
+          type: number
+          description: Observed trajectory drop
+          default: 0.0
+        cost_increase_ratio:
+          type: number
+          description: Cost increase ratio (0..N)
+          default: 0.0
+        canary_latency_ms:
+          type: number
+          description: Canary p95 latency in ms
+          default: 0.0
+        outcome_metrics:
+          type: object
+          additionalProperties: { type: number }
+          description: Ingested outcome metric averages keyed by name
+
+    DecisionRecord:
+      type: object
+      required: [decisionId, deploymentId, action, rationale, signal, judgedBy, decidedAt]
+      description: Audit record of a single meta-agent decision cycle
+      properties:
+        decisionId: { type: string }
+        deploymentId: { type: string }
+        evaluationId: { type: string }
+        action:
+          type: string
+          enum: [advance, hold, rollback]
+        rationale:
+          type: string
+          description: Human-readable explanation of the decision
+        signal: { $ref: '#/components/schemas/GrayZoneSignal' }
+        judgedBy:
+          type: string
+          enum: [safety_floor, gemini, gemini_failed, heuristic, auto_advance, missing_baseline]
+          description: Provenance of the decision
+        prDraftId:
+          type: string
+          description: ID of the associated PRDraft when action==rollback
+        decidedAt: { type: string, format: date-time }
 
     Event:
       type: object

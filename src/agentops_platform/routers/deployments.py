@@ -7,20 +7,25 @@ Endpoints:
   GET    /deployments/{deploymentId}
   POST   /deployments/{deploymentId}:promote
   POST   /deployments/{deploymentId}:rollback
+  POST   /deployments/{deploymentId}:decide
 """
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import JSONResponse
 
 from config.defaults import (
     EVENT_DEPLOYMENT_CREATED,
 )
+from ..meta_agent import MetaAgentCycle
 from ..models import (
+    DecisionRecord,
     Deployment,
     DeploymentCreate,
     Event,
@@ -230,6 +235,44 @@ def rollback_deployment_endpoint(
     if agent_id:
         store.append_event(agent_id, event)
     return updated
+
+
+@router.post(
+    "/deployments/{deploymentId}:decide",
+    response_model=DecisionRecord,
+    tags=["deployments"],
+)
+def decide_deployment_endpoint(
+    deploymentId: str,
+    store: StoreDep,
+    _auth: AuthDep,
+) -> JSONResponse:
+    """Run one meta-agent decision cycle for a canary deployment.
+
+    Calls MetaAgentCycle.run() which evaluates the safety floor and gray-zone
+    signals to decide whether to advance, hold, or rollback the canary.
+    Returns the resulting DecisionRecord as an audit trail entry.
+    """
+    try:
+        cycle = MetaAgentCycle(store)
+        record = cycle.run(deploymentId)
+    except ValueError as exc:
+        msg = str(exc)
+        if "not found" in msg:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "not_found", "message": msg},
+            ) from exc
+        if "terminal state" in msg:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "conflict", "message": msg},
+            ) from exc
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "bad_request", "message": msg},
+        ) from exc
+    return JSONResponse(content=json.loads(record.model_dump_json()))
 
 
 def _find_agent_id_for_deployment(store: StoreDep, deployment_id: str) -> str | None:
