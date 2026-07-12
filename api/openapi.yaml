@@ -337,6 +337,26 @@ paths:
         Evaluates the safety floor (Layer 1) and gray-zone signals (Layer 2)
         to decide whether to advance, hold, or rollback the canary.
         Returns a DecisionRecord as an audit trail entry.
+
+        The request body is optional. When provided, ``evaluationId`` and/or
+        ``stableEvaluationId`` pin the evaluation runs used by the cycle.
+        Omitting the body (or leaving fields null) retains the automatic
+        resolution behaviour.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                evaluationId:
+                  type: string
+                  nullable: true
+                  description: Evaluation run ID for the canary version. If null, resolved automatically.
+                stableEvaluationId:
+                  type: string
+                  nullable: true
+                  description: Evaluation run ID for the stable baseline version. If null, resolved automatically.
       responses:
         '200':
           description: Decision cycle completed

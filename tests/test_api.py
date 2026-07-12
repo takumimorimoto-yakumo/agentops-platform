@@ -460,6 +460,58 @@ class TestDeployments:
         resp = client.post(f"/v1/deployments/{dep['deploymentId']}:decide")
         assert resp.status_code == 409
 
+    def test_decide_with_stable_evaluation_id_enters_normal_judgment_path(
+        self, client: TestClient
+    ) -> None:
+        """Passing stableEvaluationId bypasses missing_baseline and enters normal judgment.
+
+        Without stableEvaluationId, _resolve_evaluation(None, version_id=None) returns None
+        and the cycle holds with judgedBy="missing_baseline".  Supplying stableEvaluationId
+        pins a real evaluation, so the cycle can compare canary vs stable scores and
+        produce advance/hold/rollback via auto_advance or heuristic, never missing_baseline.
+        """
+        from agentops_platform.meta_agent import _clear_store
+
+        _clear_store()
+        agent = _register_agent(client)
+        version = _create_version(client, agent["agentId"])
+        suite = _create_suite(client, agent["agentId"])
+
+        dep = client.post(
+            f"/v1/agents/{agent['agentId']}/deployments",
+            json={
+                "versionId": version["versionId"],
+                "strategy": {"type": "canary", "steps": [10, 50, 100]},
+            },
+        ).json()
+
+        # Trigger two evaluation runs (canary eval + stable eval) so we have
+        # concrete evaluation IDs to pin.  The stub judge returns good scores,
+        # so both evaluations succeed.
+        canary_eval = client.post(
+            f"/v1/agents/{agent['agentId']}/evaluations",
+            json={"versionId": version["versionId"], "suiteId": suite["suiteId"]},
+        ).json()
+        stable_eval = client.post(
+            f"/v1/agents/{agent['agentId']}/evaluations",
+            json={"versionId": version["versionId"], "suiteId": suite["suiteId"]},
+        ).json()
+
+        resp = client.post(
+            f"/v1/deployments/{dep['deploymentId']}:decide",
+            json={
+                "evaluationId": canary_eval["evaluationId"],
+                "stableEvaluationId": stable_eval["evaluationId"],
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        record = resp.json()
+
+        # With a real stable baseline the cycle must NOT hold for missing_baseline.
+        assert record["judgedBy"] != "missing_baseline"
+        # Action must be one of the normal judgment outcomes.
+        assert record["action"] in ("advance", "hold", "rollback")
+
 
 # ── Metrics ingest tests ──────────────────────────────────────────────────────
 

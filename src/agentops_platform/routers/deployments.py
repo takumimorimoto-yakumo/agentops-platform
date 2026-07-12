@@ -19,6 +19,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from config.defaults import (
     EVENT_DEPLOYMENT_CREATED,
@@ -31,6 +32,17 @@ from ..models import (
     Event,
     RollbackRequest,
 )
+
+
+class DecideRequest(BaseModel):
+    """Optional request body for :decide endpoint.
+
+    Both fields are optional.  Omitting them (or sending no body) preserves
+    the existing behaviour: evaluation IDs are resolved from the store.
+    """
+
+    evaluationId: str | None = None
+    stableEvaluationId: str | None = None
 from ..rollback import (
     TERMINAL_STATES,
     advance_canary_step,
@@ -246,16 +258,29 @@ def decide_deployment_endpoint(
     deploymentId: str,
     store: StoreDep,
     _auth: AuthDep,
+    body: Optional[DecideRequest] = None,
 ) -> JSONResponse:
     """Run one meta-agent decision cycle for a canary deployment.
 
     Calls MetaAgentCycle.run() which evaluates the safety floor and gray-zone
     signals to decide whether to advance, hold, or rollback the canary.
     Returns the resulting DecisionRecord as an audit trail entry.
+
+    An optional request body may specify ``evaluationId`` and/or
+    ``stableEvaluationId`` to pin the evaluation runs used by the cycle.
+    Omitting the body (or passing null for either field) retains the previous
+    behaviour: IDs are resolved automatically from the store.
     """
+    evaluation_id = body.evaluationId if body else None
+    stable_evaluation_id = body.stableEvaluationId if body else None
+
     try:
         cycle = MetaAgentCycle(store)
-        record = cycle.run(deploymentId)
+        record = cycle.run(
+            deploymentId,
+            evaluation_id=evaluation_id,
+            stable_evaluation_id=stable_evaluation_id,
+        )
     except ValueError as exc:
         msg = str(exc)
         if "not found" in msg:
